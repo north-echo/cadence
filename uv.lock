@@ -6,6 +6,12 @@ resolution-markers = [
     "python_full_version < '3.15'",
 ]
 
+[manifest]
+
+[[manifest.dependency-metadata]]
+name = "rpm-py-installer"
+version = "1.2.0"
+
 [[package]]
 name = "annotated-types"
 version = "0.7.0"
@@ -585,6 +591,9 @@ dev = [
     { name = "pytest-httpx" },
     { name = "ruff" },
 ]
+rpm = [
+    { name = "rpm-py-installer", marker = "sys_platform == 'linux'" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -599,10 +608,11 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-httpx", marker = "extra == 'dev'", specifier = ">=0.30" },
     { name = "rich", specifier = ">=13.7" },
+    { name = "rpm-py-installer", marker = "sys_platform == 'linux' and extra == 'rpm'", specifier = ">=1.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
     { name = "structlog", specifier = ">=24.1" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["rpm", "dev"]
 
 [[package]]
 name = "numpy"
@@ -958,6 +968,12 @@ sdist = { url = "https://files.pythonhosted.org/packages/c0/8f/0722ca900cc807c13
 wheels = [
     { url = "https://files.pythonhosted.org/packages/82/3b/64d4899d73f91ba49a8c18a8ff3f0ea8f1c1d75481760df8c68ef5235bf5/rich-15.0.0-py3-none-any.whl", hash = "sha256:33bd4ef74232fb73fe9279a257718407f169c09b78a87ad3d296f548e27de0bb", size = 310654, upload-time = "2026-04-12T08:24:02.83Z" },
 ]
+
+[[package]]
+name = "rpm-py-installer"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/30/b8/ddb7509bdad54417fc2d2139aa925c1fd2ac5def4bd9093c0878c17f5d3f/rpm-py-installer-1.2.0.tar.gz", hash = "sha256:88fcb3b4ecb77113a2f7d344ca64f20bceb587fde018d87f3ecf25c532958da6", size = 21001, upload-time = "2022-08-01T15:53:27.407Z" }
 
 [[package]]
 name = "ruff"

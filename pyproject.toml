@@ -39,7 +39,8 @@ dependencies = [
 [project.optional-dependencies]
 # Per CADENCE-SPEC.md WP-01: rpm Python bindings as an optional dep,
 # system-provided on Fedora (the Containerfile installs `python3-rpm`).
-rpm = ["rpm-py-installer>=1.0"]
+# Linux-only — rpm bindings do not exist on other platforms.
+rpm = ['rpm-py-installer>=1.0 ; sys_platform == "linux"']
 
 dev = [
     "pytest>=8.0",
@@ -56,6 +57,17 @@ cadence = "cadence.cli:main"
 Homepage = "https://github.com/north-echo/cadence"
 Repository = "https://github.com/north-echo/cadence"
 Issues = "https://github.com/north-echo/cadence/issues"
+
+[tool.uv]
+# `rpm-py-installer` is a source-only sdist whose setup.py compiles librpm
+# bindings at install time. uv's universal resolver tries to build it during
+# metadata collection, which fails on non-Linux dev hosts even though the
+# PEP 508 marker would skip it at install. Provide metadata explicitly so the
+# resolver never has to build it.
+[[tool.uv.dependency-metadata]]
+name = "rpm-py-installer"
+version = "1.2.0"
+requires-dist = []
 
 [tool.hatch.build.targets.wheel]
 packages = ["cadence"]
