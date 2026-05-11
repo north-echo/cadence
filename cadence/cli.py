@@ -203,10 +203,38 @@ def collect_csaf(
 
 
 @collect.command("repodata")
-@click.option("--repos", type=str, help="Comma-separated repo IDs.")
-def collect_repodata(repos: str | None) -> None:
-    """Collect cdn-ubi.redhat.com repodata. Forward-only. (WP-05)"""
-    _not_implemented("collect repodata")
+@click.option(
+    "--repos",
+    type=str,
+    help="Comma-separated repo IDs (default: every UBI 8/9/10 baseos/appstream/"
+    "codeready-builder x x86_64/aarch64).",
+)
+@click.pass_obj
+def collect_repodata(settings: Settings, repos: str | None) -> None:
+    """Collect cdn-ubi.redhat.com repodata. Forward-only."""
+    from cadence.collectors.repodata import RepoDataCollector
+
+    repo_list = [r.strip() for r in repos.split(",")] if repos else None
+
+    async def run() -> None:
+        async with RepoDataCollector(settings, settings.db_path) as collector:
+            result = await collector.collect(repos=repo_list)
+            console.print(
+                f"[green]repodata[/green]: {result.records} new observation(s) "
+                f"in {result.duration_seconds:.1f}s "
+                f"({len(result.errors)} error(s))"
+            )
+            if result.errors:
+                for msg in result.errors[:10]:
+                    err_console.print(f"  [yellow]![/yellow] {msg}")
+                if len(result.errors) > 10:
+                    err_console.print(f"  … and {len(result.errors) - 10} more")
+                sys.exit(1)
+
+    settings.db_path.parent.mkdir(parents=True, exist_ok=True)
+    with connect(settings.db_path) as conn:
+        apply_migrations(conn)
+    asyncio.run(run())
 
 
 @collect.command("catalog")

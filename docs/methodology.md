@@ -70,11 +70,21 @@ and release components correctly per RPM semantics.
 > Filled in by WP-09, WP-10, and WP-13.
 
 * **Gap A** — RHSA publication to fixed RPM available in
-  `cdn-ubi.redhat.com`. Forward-only (cdn-ubi exposes no archive); precision
-  bounded by the repodata polling interval.
+  `cdn-ubi.redhat.com`. **Forward-only.** Pre-flight spike (CADENCE-SPEC.md
+  §13.5) confirmed `cdn-ubi.redhat.com` exposes only current repodata, with
+  no archive. Gap A precision is bounded by the repodata polling interval:
+  with WP-14's default 4-hour timer, Gap A is accurate to ±4 hours, and any
+  reported value should be read as "no later than X" rather than "exactly X".
+  RPM `build_time` and `file_time` from `<package><time .../></package>` in
+  `primary.xml` give a tighter lower bound on availability when present.
 * **Gap B** — fixed RPM available to first rebased base image.
 * **Gap C** — RHSA publication to first downstream image containing the fix
   (end-to-end), computed per tier.
+
+The repodata collector (WP-05) does not consume `updateinfo.xml`: UBI
+repositories publish an empty `updateinfo.xml` (validated in the pre-flight
+spike, CADENCE-SPEC §13.6). RHSA→package mapping comes from the
+`rhsa_package_fix` table (WP-03) joined to `repo_package` by NEVRA.
 
 ## 7. Inter-build interval
 
