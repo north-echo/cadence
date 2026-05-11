@@ -17,6 +17,7 @@ message and exits non-zero. Real behavior lands in later work packages:
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
 
@@ -125,9 +126,35 @@ def collect() -> None:
 @collect.command("rhsa")
 @click.option("--since", type=str, help="ISO date (YYYY-MM-DD). Inclusive.")
 @click.option("--until", type=str, help="ISO date (YYYY-MM-DD). Inclusive.")
-def collect_rhsa(since: str | None, until: str | None) -> None:
-    """Collect RHSAs from the Red Hat Security Data API. (WP-03)"""
-    _not_implemented("collect rhsa")
+@click.option("--max-pages", type=int, default=500, show_default=True)
+@click.pass_obj
+def collect_rhsa(
+    settings: Settings, since: str | None, until: str | None, max_pages: int
+) -> None:
+    """Collect RHSAs from the Red Hat Security Data API."""
+    from cadence.collectors.rhsa import RHSACollector
+
+    async def run() -> None:
+        async with RHSACollector(settings, settings.db_path) as collector:
+            result = await collector.collect(
+                since=since, until=until, max_pages=max_pages
+            )
+            console.print(
+                f"[green]rhsa[/green]: {result.records} RHSA(s) persisted "
+                f"in {result.duration_seconds:.1f}s "
+                f"({len(result.errors)} error(s))"
+            )
+            if result.errors:
+                for msg in result.errors[:10]:
+                    err_console.print(f"  [yellow]![/yellow] {msg}")
+                if len(result.errors) > 10:
+                    err_console.print(f"  … and {len(result.errors) - 10} more")
+                sys.exit(1)
+
+    settings.db_path.parent.mkdir(parents=True, exist_ok=True)
+    with connect(settings.db_path) as conn:
+        apply_migrations(conn)
+    asyncio.run(run())
 
 
 @collect.command("csaf")

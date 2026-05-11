@@ -1,0 +1,247 @@
+{
+  "document" : {
+    "aggregate_severity" : {
+      "namespace" : "https://access.redhat.com/security/updates/classification/",
+      "text" : "Moderate"
+    },
+    "category" : "csaf_security_advisory",
+    "csaf_version" : "2.0",
+    "distribution" : {
+      "text" : "Copyright © Red Hat, Inc. All rights reserved.",
+      "tlp" : {
+        "label" : "WHITE",
+        "url" : "https://www.first.org/tlp/"
+      }
+    },
+    "lang" : "en",
+    "notes" : [ {
+      "category" : "summary",
+      "text" : "An update for python3.11-urllib3 is now available for Red Hat Enterprise Linux 8.8 Extended Update Support.\n\nRed Hat Product Security has rated this update as having a security impact of Moderate. A Common Vulnerability Scoring System (CVSS) base score, which gives a detailed severity rating, is available for each vulnerability from the CVE link(s) in the References section.",
+      "title" : "Topic"
+    }, {
+      "category" : "general",
+      "text" : "Python is an interpreted, interactive, object-oriented programming language, which includes modules, classes, exceptions, very high level dynamic data types and dynamic typing. Python supports interfaces to many system calls and libraries, as well as to various windowing systems.\n\nSecurity Fix(es):\n\n* urllib3: Request body not stripped after redirect from 303 status changes request method to GET (CVE-2023-45803)\n\nFor more details about the security issue(s), including the impact, a CVSS score, acknowledgments, and other related information, refer to the CVE page(s) listed in the References section.",
+      "title" : "Details"
+    }, {
+      "category" : "legal_disclaimer",
+      "text" : "This content is licensed under the Creative Commons Attribution 4.0 International License (https://creativecommons.org/licenses/by/4.0/). If you distribute this content, or a modified version of it, you must provide attribution to Red Hat Inc. and provide a link to the original.",
+      "title" : "Terms of Use"
+    } ],
+    "publisher" : {
+      "category" : "vendor",
+      "contact_details" : "https://access.redhat.com/security/team/contact/",
+      "issuing_authority" : "Red Hat Product Security is responsible for vulnerability handling across all Red Hat products and services.",
+      "name" : "Red Hat Product Security",
+      "namespace" : "https://www.redhat.com"
+    },
+    "references" : [ {
+      "category" : "self",
+      "summary" : "https://access.redhat.com/errata/RHSA-2025:0078",
+      "url" : "https://access.redhat.com/errata/RHSA-2025:0078"
+    }, {
+      "category" : "external",
+      "summary" : "https://access.redhat.com/security/updates/classification/#moderate",
+      "url" : "https://access.redhat.com/security/updates/classification/#moderate"
+    }, {
+      "category" : "external",
+      "summary" : "2246840",
+      "url" : "https://bugzilla.redhat.com/show_bug.cgi?id=2246840"
+    }, {
+      "category" : "self",
+      "summary" : "Canonical URL",
+      "url" : "https://security.access.redhat.com/data/csaf/v2/advisories/2025/rhsa-2025_0078.json"
+    } ],
+    "title" : "Red Hat Security Advisory: python3.11-urllib3 security update",
+    "tracking" : {
+      "current_release_date" : "2026-04-30T13:29:01+00:00",
+      "generator" : {
+        "date" : "2026-04-30T13:29:01+00:00",
+        "engine" : {
+          "name" : "Red Hat SDEngine",
+          "version" : "4.7.7"
+        }
+      },
+      "id" : "RHSA-2025:0078",
+      "initial_release_date" : "2025-01-08T08:28:52+00:00",
+      "revision_history" : [ {
+        "date" : "2025-01-08T08:28:52+00:00",
+        "number" : "1",
+        "summary" : "Initial version"
+      }, {
+        "date" : "2025-01-08T08:28:52+00:00",
+        "number" : "2",
+        "summary" : "Last updated version"
+      }, {
+        "date" : "2026-04-30T13:29:01+00:00",
+        "number" : "3",
+        "summary" : "Last generated version"
+      } ],
+      "status" : "final",
+      "version" : "3"
+    }
+  },
+  "product_tree" : {
+    "branches" : [ {
+      "branches" : [ {
+        "branches" : [ {
+          "category" : "product_name",
+          "name" : "Red Hat Enterprise Linux AppStream EUS (v.8.8)",
+          "product" : {
+            "name" : "Red Hat Enterprise Linux AppStream EUS (v.8.8)",
+            "product_id" : "AppStream-8.8.0.Z.EUS",
+            "product_identification_helper" : {
+              "cpe" : "cpe:/a:redhat:rhel_eus:8.8::appstream"
+            }
+          }
+        } ],
+        "category" : "product_family",
+        "name" : "Red Hat Enterprise Linux"
+      }, {
+        "branches" : [ {
+          "category" : "product_version",
+          "name" : "python3.11-urllib3-0:1.26.12-1.el8_8.2.src",
+          "product" : {
+            "name" : "python3.11-urllib3-0:1.26.12-1.el8_8.2.src",
+            "product_id" : "python3.11-urllib3-0:1.26.12-1.el8_8.2.src",
+            "product_identification_helper" : {
+              "purl" : "pkg:rpm/redhat/python3.11-urllib3@1.26.12-1.el8_8.2?arch=src"
+            }
+          }
+        } ],
+        "category" : "architecture",
+        "name" : "src"
+      }, {
+        "branches" : [ {
+          "category" : "product_version",
+          "name" : "python3.11-urllib3-0:1.26.12-1.el8_8.2.noarch",
+          "product" : {
+            "name" : "python3.11-urllib3-0:1.26.12-1.el8_8.2.noarch",
+            "product_id" : "python3.11-urllib3-0:1.26.12-1.el8_8.2.noarch",
+            "product_identification_helper" : {
+              "purl" : "pkg:rpm/redhat/python3.11-urllib3@1.26.12-1.el8_8.2?arch=noarch"
+            }
+          }
+        } ],
+        "category" : "architecture",
+        "name" : "noarch"
+      } ],
+      "category" : "vendor",
+      "name" : "Red Hat"
+    } ],
+    "relationships" : [ {
+      "category" : "default_component_of",
+      "full_product_name" : {
+        "name" : "python3.11-urllib3-0:1.26.12-1.el8_8.2.noarch as a component of Red Hat Enterprise Linux AppStream EUS (v.8.8)",
+        "product_id" : "AppStream-8.8.0.Z.EUS:python3.11-urllib3-0:1.26.12-1.el8_8.2.noarch"
+      },
+      "product_reference" : "python3.11-urllib3-0:1.26.12-1.el8_8.2.noarch",
+      "relates_to_product_reference" : "AppStream-8.8.0.Z.EUS"
+    }, {
+      "category" : "default_component_of",
+      "full_product_name" : {
+        "name" : "python3.11-urllib3-0:1.26.12-1.el8_8.2.src as a component of Red Hat Enterprise Linux AppStream EUS (v.8.8)",
+        "product_id" : "AppStream-8.8.0.Z.EUS:python3.11-urllib3-0:1.26.12-1.el8_8.2.src"
+      },
+      "product_reference" : "python3.11-urllib3-0:1.26.12-1.el8_8.2.src",
+      "relates_to_product_reference" : "AppStream-8.8.0.Z.EUS"
+    } ]
+  },
+  "vulnerabilities" : [ {
+    "cve" : "CVE-2023-45803",
+    "cwe" : {
+      "id" : "CWE-200",
+      "name" : "Exposure of Sensitive Information to an Unauthorized Actor"
+    },
+    "discovery_date" : "2023-10-29T00:00:00+00:00",
+    "ids" : [ {
+      "system_name" : "Red Hat Bugzilla ID",
+      "text" : "2246840"
+    } ],
+    "notes" : [ {
+      "category" : "description",
+      "text" : "A flaw was found in urllib3, an HTTP client library for Python. urllib3 doesn't remove the HTTP request body when an HTTP redirect response using status 301, 302, or 303, after changing the method in a request from one that could accept a request body such as `POST` to `GET`, as is required by HTTP RFCs. This issue requires a previously trusted service to become compromised in order to have an impact on confidentiality, therefore, the exploitability of this vulnerability is low. Additionally, many users aren't putting sensitive data in HTTP request bodies; if this is the case, this vulnerability isn't exploitable.",
+      "title" : "Vulnerability description"
+    }, {
+      "category" : "summary",
+      "text" : "urllib3: Request body not stripped after redirect from 303 status changes request method to GET",
+      "title" : "Vulnerability summary"
+    }, {
+      "category" : "other",
+      "text" : "Both of the following conditions must be true to be affected by this vulnerability: \n1. Using urllib3 and submitting sensitive information in the HTTP request body such as form data or JSON\n2. The origin service is compromised and starts redirecting using 301, 302, or 303 to a malicious peer or the redirected-to service becomes compromised",
+      "title" : "Statement"
+    }, {
+      "category" : "general",
+      "text" : "The CVSS score(s) listed for this vulnerability do not reflect the associated product's status, and are included for informational purposes to better understand the severity of this vulnerability.",
+      "title" : "CVSS score applicability"
+    } ],
+    "product_status" : {
+      "fixed" : [ "AppStream-8.8.0.Z.EUS:python3.11-urllib3-0:1.26.12-1.el8_8.2.noarch", "AppStream-8.8.0.Z.EUS:python3.11-urllib3-0:1.26.12-1.el8_8.2.src" ]
+    },
+    "references" : [ {
+      "category" : "self",
+      "summary" : "Canonical URL",
+      "url" : "https://access.redhat.com/security/cve/CVE-2023-45803"
+    }, {
+      "category" : "external",
+      "summary" : "RHBZ#2246840",
+      "url" : "https://bugzilla.redhat.com/show_bug.cgi?id=2246840"
+    }, {
+      "category" : "external",
+      "summary" : "https://www.cve.org/CVERecord?id=CVE-2023-45803",
+      "url" : "https://www.cve.org/CVERecord?id=CVE-2023-45803"
+    }, {
+      "category" : "external",
+      "summary" : "https://nvd.nist.gov/vuln/detail/CVE-2023-45803",
+      "url" : "https://nvd.nist.gov/vuln/detail/CVE-2023-45803"
+    }, {
+      "category" : "external",
+      "summary" : "https://github.com/urllib3/urllib3/commit/4e98d57809dacab1cbe625fddeec1a290c478ea9",
+      "url" : "https://github.com/urllib3/urllib3/commit/4e98d57809dacab1cbe625fddeec1a290c478ea9"
+    }, {
+      "category" : "external",
+      "summary" : "https://github.com/urllib3/urllib3/security/advisories/GHSA-g4mx-q9vg-27p4",
+      "url" : "https://github.com/urllib3/urllib3/security/advisories/GHSA-g4mx-q9vg-27p4"
+    }, {
+      "category" : "external",
+      "summary" : "https://www.rfc-editor.org/rfc/rfc9110.html#name-get",
+      "url" : "https://www.rfc-editor.org/rfc/rfc9110.html#name-get"
+    } ],
+    "release_date" : "2023-10-13T00:00:00+00:00",
+    "remediations" : [ {
+      "category" : "vendor_fix",
+      "date" : "2025-01-08T08:28:52+00:00",
+      "details" : "For details on how to apply this update, which includes the changes described in this advisory, refer to:\n\nhttps://access.redhat.com/articles/11258",
+      "product_ids" : [ "AppStream-8.8.0.Z.EUS:python3.11-urllib3-0:1.26.12-1.el8_8.2.noarch", "AppStream-8.8.0.Z.EUS:python3.11-urllib3-0:1.26.12-1.el8_8.2.src" ],
+      "restart_required" : {
+        "category" : "none"
+      },
+      "url" : "https://access.redhat.com/errata/RHSA-2025:0078"
+    }, {
+      "category" : "workaround",
+      "details" : "Users unable to update should disable redirects for services that aren't expecting to respond with redirects with `redirects=False`, disable automatic redirects with `redirects=False`, and handle 301, 302, and 303 redirects manually by stripping the HTTP request body.",
+      "product_ids" : [ "AppStream-8.8.0.Z.EUS:python3.11-urllib3-0:1.26.12-1.el8_8.2.noarch", "AppStream-8.8.0.Z.EUS:python3.11-urllib3-0:1.26.12-1.el8_8.2.src" ]
+    } ],
+    "scores" : [ {
+      "cvss_v3" : {
+        "attackComplexity" : "HIGH",
+        "attackVector" : "ADJACENT_NETWORK",
+        "availabilityImpact" : "NONE",
+        "baseScore" : 4.2,
+        "baseSeverity" : "MEDIUM",
+        "confidentialityImpact" : "HIGH",
+        "integrityImpact" : "NONE",
+        "privilegesRequired" : "HIGH",
+        "scope" : "UNCHANGED",
+        "userInteraction" : "NONE",
+        "vectorString" : "CVSS:3.1/AV:A/AC:H/PR:H/UI:N/S:U/C:H/I:N/A:N",
+        "version" : "3.1"
+      },
+      "products" : [ "AppStream-8.8.0.Z.EUS:python3.11-urllib3-0:1.26.12-1.el8_8.2.noarch", "AppStream-8.8.0.Z.EUS:python3.11-urllib3-0:1.26.12-1.el8_8.2.src" ]
+    } ],
+    "threats" : [ {
+      "category" : "impact",
+      "details" : "Moderate"
+    } ],
+    "title" : "urllib3: Request body not stripped after redirect from 303 status changes request method to GET"
+  } ]
+}

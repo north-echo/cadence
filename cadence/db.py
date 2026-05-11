@@ -40,9 +40,12 @@ def _read_migration(name: str) -> str:
 def connect(db_path: Path) -> Iterator[sqlite3.Connection]:
     """Open a SQLite connection with sensible defaults for CADENCE."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
+    # detect_types is intentionally NOT enabled. Python 3.12 deprecated the
+    # default TIMESTAMP converter (which couldn't parse `+00:00` offsets
+    # anyway). Timestamps are stored and returned as ISO 8601 strings;
+    # callers that need `datetime` objects parse on read.
     conn = sqlite3.connect(
         db_path,
-        detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
         isolation_level=None,  # explicit transactions via BEGIN / COMMIT
     )
     try:
