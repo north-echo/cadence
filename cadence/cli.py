@@ -291,10 +291,38 @@ def collect_catalog(
 
 
 @collect.command("quay")
-@click.option("--repos", type=str, help="Comma-separated NS/NAME.")
-def collect_quay(repos: str | None) -> None:
-    """Collect Quay.io tag history + OCI manifests. (WP-07)"""
-    _not_implemented("collect quay")
+@click.option(
+    "--repos",
+    type=str,
+    help="Comma-separated NS/NAME. Defaults to every Quay-source repo "
+    "in cadence/targets.py.",
+)
+@click.pass_obj
+def collect_quay(settings: Settings, repos: str | None) -> None:
+    """Collect Quay.io tag history + OCI manifests."""
+    from cadence.collectors.quay import QuayCollector
+
+    repo_list = [r.strip() for r in repos.split(",")] if repos else None
+
+    async def run() -> None:
+        async with QuayCollector(settings, settings.db_path) as collector:
+            result = await collector.collect(repos=repo_list)
+            console.print(
+                f"[green]quay[/green]: {result.records} image row(s) "
+                f"in {result.duration_seconds:.1f}s "
+                f"({len(result.errors)} error(s))"
+            )
+            if result.errors:
+                for msg in result.errors[:10]:
+                    err_console.print(f"  [yellow]![/yellow] {msg}")
+                if len(result.errors) > 10:
+                    err_console.print(f"  … and {len(result.errors) - 10} more")
+                sys.exit(1)
+
+    settings.db_path.parent.mkdir(parents=True, exist_ok=True)
+    with connect(settings.db_path) as conn:
+        apply_migrations(conn)
+    asyncio.run(run())
 
 
 # ---------- verify ----------

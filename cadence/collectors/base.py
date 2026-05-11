@@ -261,6 +261,7 @@ class HTTPClient:
         *,
         ttl_seconds: int | None = None,
         bypass_cache: bool = False,
+        headers: dict[str, str] | None = None,
     ) -> CachedResponse:
         """Async GET with cache, per-host rate limit, and retry on 429/5xx.
 
@@ -271,6 +272,11 @@ class HTTPClient:
             :attr:`Settings.cache_ttl_stable_seconds` (24h).
         bypass_cache:
             Skip the cache for both read and write.
+        headers:
+            Per-request HTTP headers (merged on top of the client defaults).
+            Note: changes here do *not* affect the cache key, so callers that
+            need response-by-Accept differentiation must use distinct URLs or
+            pass ``bypass_cache=True``.
         """
         ttl = (
             ttl_seconds
@@ -293,7 +299,7 @@ class HTTPClient:
         while True:
             await self.rate_limiter.acquire(host)
             try:
-                response = await client.get(url)
+                response = await client.get(url, headers=headers)
             except httpx.HTTPError as exc:
                 last_exc = exc
                 if attempt >= self.max_retries:

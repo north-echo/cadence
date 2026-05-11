@@ -108,7 +108,20 @@ Hat products slow; Quay-hosted content variable).
 
 * **Gap A is forward-only.** Pre-flight spike confirmed `cdn-ubi.redhat.com`
   exposes only current repodata.
-* **Quay v1 has no RPM-level Gap C.** Inter-build interval only; per-image
-  RPM extraction deferred to v2.
+* **Quay v1 has no RPM-level Gap C.** The Quay collector (WP-07) records
+  inter-build interval only. Quay's registry doesn't expose anything analogous
+  to the Red Hat Container Catalog's `rpm-manifest` endpoint, and extracting
+  RPMs from registry-mounted image layers is out of scope for v1. Quay
+  `container_image` rows therefore have populated `tier`, `digest`,
+  `architecture`, and `build_date`, but no `container_image_rpm` rows. Analysis
+  in WP-09/WP-10 inserts `NULL` into `gap_measurement.gap_a/b/c_seconds` for
+  Quay images and populates `rebuild_interval` normally. Per-image RPM
+  extraction is deferred to v2.
 * **Polling interval bounds Gap A precision.** A four-hour polling interval
   means Gap A measurements are accurate to ±4 hours.
+* **Quay build_date is push time, not image-build time.** The Quay collector
+  uses each tag's `start_ts` (the moment Quay accepted the push), not the
+  `created` timestamp from the per-arch config blob. The two are typically
+  within seconds of each other, and `start_ts` is identical across the
+  children of a manifest list — what users perceive as the "release time."
+  WP-10 inter-build interval calculations are therefore push-time based.
