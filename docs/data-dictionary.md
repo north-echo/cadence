@@ -1,83 +1,221 @@
 # CADENCE Data Dictionary
 
-> WP-10 cut. The schema reference is fleshed out for every column that ships
-> data today; per-table fully-rounded definitions land with WP-13.
+This document describes every table in the SQLite database CADENCE writes
+to, every column in those tables, and every field in the exported
+artefacts produced by `cadence export`. External readers should be able to
+load the published dataset and understand each value without consulting
+the source code.
 
-All timestamps are stored as **ISO 8601 strings with timezone offsets**, UTC
-unless otherwise noted (e.g., `2025-01-30T18:06:01+00:00`). Durations
-(`*_seconds`) are integers in seconds.
+## Conventions
 
-NEVRA-bearing columns (`version`, `fixed_version`) store the canonical
-`{epoch}:{version}-{release}` form. Architecture is kernel-arch
-(`x86_64`, `aarch64`, `noarch`, `src`) throughout, even for Quay data
-collected under Docker/OCI vocabulary (translated at the URL boundary; see
-`cadence/collectors/catalog.py` and `cadence/collectors/quay.py`).
+* **Timestamps** are ISO 8601 strings with explicit timezone offsets,
+  always UTC. Example: `2025-01-30T18:06:01+00:00`. CADENCE never relies
+  on the SQLite type system to coerce these; callers parse on read.
+* **Durations** (`*_seconds`) are 64-bit integers, in seconds. The report
+  and chart layers convert to days for display; storage stays in seconds.
+* **NEVRA-bearing columns** (`version`, `fixed_version`) store the
+  canonical `{epoch}:{version}-{release}` form. Compare with
+  `cadence.analysis.nevra.evr_ge` / `label_compare` — never lexically.
+* **Architecture** is the RPM ("kernel") vocabulary throughout:
+  `x86_64`, `aarch64`, `noarch`, `src`. Quay data collected under the
+  Docker/OCI vocabulary (`amd64`, `arm64`) is translated at the URL
+  boundary; see `cadence/collectors/catalog.py` and
+  `cadence/collectors/quay.py`.
+* **Raw JSON** preserved in `raw_json` columns is the verbatim upstream
+  payload, JSON-serialised with `sort_keys=True` so it's hash-stable
+  across runs.
+* **Idempotency** keys are documented per table.
 
 ## Schema reference
 
+### `schema_migrations`
+
+Internal bookkeeping for `cadence db migrate`. One row per applied
+migration file (`name`, `applied_at`).
+
 ### `rhsa`
 
-One row per Red Hat Security Advisory. Populated by WP-03.
+One row per Red Hat Security Advisory. Populated by `cadence collect rhsa`
+(WP-03). Idempotency: UPSERT keyed on `rhsa_id`.
 
 | Column | Type | Description |
 |---|---|---|
 | `rhsa_id` | TEXT PK | `RHSA-YYYY:NNNN` |
-| `title` | TEXT | Document title from CSAF |
-| `severity` | TEXT | Lowercase: `critical`/`important`/`moderate`/`low` |
+| `title` | TEXT | `document.title` from the CSAF document |
+| `severity` | TEXT | Lowercase: `critical`, `important`, `moderate`, `low`, or `unknown` |
 | `published_at` | TIMESTAMP | `document.tracking.initial_release_date` |
 | `updated_at` | TIMESTAMP | `document.tracking.current_release_date` |
-| `source_url` | TEXT | Where the document was fetched from |
-| `raw_json` | TEXT | Verbatim CSAF document for re-analysis |
+| `source_url` | TEXT | Where the document was fetched from (the CSAF v2 detail URL) |
+| `raw_json` | TEXT | Verbatim CSAF v2 document, JSON-serialised with `sort_keys=True` |
 | `collected_at` | TIMESTAMP | When CADENCE pulled it |
 
-### `rhsa_cve`, `rhsa_package_fix`, `rhsa_vex`
+### `rhsa_cve`
 
-Three child tables for `rhsa`. `rhsa_package_fix.fixed_version` is in the
-canonical EVR format. `rhsa_vex.status` is one of `fixed`, `affected`,
-`not_affected`, `under_investigation` (see `cadence/collectors/csaf.py`
-for the CSAF-to-CADENCE status mapping).
+CVE references for each RHSA. One row per `(rhsa_id, cve_id)`. Replaced
+in full when the parent RHSA is re-collected.
 
-### `repo_observation`, `repo_package`
+| Column | Type | Description |
+|---|---|---|
+| `rhsa_id` | TEXT FK | References `rhsa.rhsa_id` |
+| `cve_id` | TEXT | `CVE-YYYY-NNNNN` |
+| `cvss3_score` | REAL | Base score from `vulnerabilities[].scores[].cvss_v3.baseScore` (nullable) |
+| `cvss3_vector` | TEXT | CVSS3 vector string (nullable) |
 
-Forward-only UBI repodata observations. Populated by WP-05.
-`repo_observation.repomd_revision` is the upstream-reported revision (used
-for idempotent skipping when nothing has changed).
+### `rhsa_package_fix`
 
-### `container_image`, `container_image_rpm`
+Fixed packages per RHSA. One row per `(rhsa_id, package_name,
+fixed_version, arch, product)`. Replaced in full on re-collect.
 
-Per-image rows from both the Red Hat Container Catalog (WP-06) and Quay
-(WP-07). `source ∈ {catalog, quay}`. Quay rows carry no
-`container_image_rpm` records in v1 (see `methodology.md` §11).
-`parsed_version` / `parsed_build_num` are populated when the tag matches
-`X[.Y[.Z]]-NNN`; otherwise NULL.
+| Column | Type | Description |
+|---|---|---|
+| `rhsa_id` | TEXT FK | References `rhsa.rhsa_id` |
+| `package_name` | TEXT | RPM name (e.g. `python3-jinja2`) |
+| `fixed_version` | TEXT | EVR: `{epoch}:{version}-{release}` (e.g. `0:2.11.3-6.el9_4`) |
+| `arch` | TEXT | `x86_64`, `aarch64`, `noarch`, `src`, … |
+| `product` | TEXT | CSAF product_id prefix (e.g. `AppStream-9.4.0.Z.EUS`) |
+
+### `rhsa_vex`
+
+VEX product statuses per RHSA. Populated by `cadence collect csaf` (WP-04).
+One row per `(rhsa_id, product_id)`. Replaced in full on re-collect.
+
+| Column | Type | Description |
+|---|---|---|
+| `rhsa_id` | TEXT FK | References `rhsa.rhsa_id` |
+| `product_id` | TEXT | CSAF product_id (typically `PRODUCT:NVRA`) |
+| `status` | TEXT | One of `fixed`, `affected`, `not_affected`, `under_investigation` (mapped from CSAF; see `cadence/collectors/csaf.py` for the source mapping) |
+| `justification` | TEXT | First non-empty CSAF flag label matching this product (nullable) |
+
+### `repo_observation`
+
+One row per UBI repodata observation (`repomd.xml` revision). Populated
+by `cadence collect repodata` (WP-05). Idempotency: a new observation is
+skipped when an existing row already matches `(repo_id, repomd_revision)`.
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | INTEGER PK | Auto-incremented |
+| `repo_id` | TEXT | Slash-delimited identifier, e.g. `ubi9/9/x86_64/baseos` |
+| `observed_at` | TIMESTAMP | When CADENCE polled |
+| `repomd_revision` | TEXT | `<revision>` from `repomd.xml` (typically an epoch) |
+| `primary_xml_sha256` | TEXT | sha256 advertised in `repomd.xml` for `primary.xml.gz`; verified before parsing |
+
+### `repo_package`
+
+One row per package observed in a `repo_observation`'s `primary.xml.gz`.
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | INTEGER PK | Auto-incremented |
+| `observation_id` | INTEGER FK | References `repo_observation.id` |
+| `package_name` | TEXT | RPM name |
+| `version` | TEXT | EVR (`{epoch}:{version}-{release}`) |
+| `arch` | TEXT | Kernel arch |
+| `build_time` | TIMESTAMP | `<time build=…>` from primary.xml (nullable) |
+| `file_time` | TIMESTAMP | `<time file=…>` from primary.xml (nullable) |
+
+### `container_image`
+
+Per-image rows for both Red Hat Container Catalog (WP-06, `source='catalog'`)
+and Quay (WP-07, `source='quay'`). Idempotency: UPSERT on `image_id`.
+
+| Column | Type | Description |
+|---|---|---|
+| `image_id` | TEXT PK | Catalog: MongoDB ObjectId. Quay: per-arch manifest digest. |
+| `source` | TEXT | `catalog` or `quay` |
+| `registry` | TEXT | `registry.access.redhat.com` or `quay.io` |
+| `repository` | TEXT | e.g. `ubi9/ubi`, `cilium/cilium` |
+| `tier` | TEXT | Per `cadence/targets.py` |
+| `tag` | TEXT | The build-specific tag if any, else fallback |
+| `digest` | TEXT | sha256 content digest |
+| `architecture` | TEXT | Kernel arch (translated from catalog/Quay vocab) |
+| `build_date` | TIMESTAMP | Catalog: `brew.completion_date` ∨ `creation_date`. Quay: tag `start_ts` (push time). |
+| `parsed_version` | TEXT | First half of an `X[.Y[.Z]]-NNN` tag, else NULL |
+| `parsed_build_num` | INTEGER | Second half of the same pattern, else NULL |
+| `raw_json` | TEXT | Verbatim upstream image record (or tag listing for Quay) |
+| `collected_at` | TIMESTAMP | When CADENCE pulled it |
+
+### `container_image_rpm`
+
+RPM manifest for each catalog image. One row per `(image_id, package_name,
+arch)`. **No rows for Quay images in v1.**
+
+| Column | Type | Description |
+|---|---|---|
+| `image_id` | TEXT FK | References `container_image.image_id` |
+| `package_name` | TEXT | RPM name |
+| `version` | TEXT | EVR with epoch recovered from `srpm_nevra` |
+| `arch` | TEXT | Kernel arch as reported by the catalog manifest |
 
 ### `catalog_advisory_mapping`
 
-Pre-November-2024 legacy advisory mapping captured from the catalog
-`comparison.advisory_rpm_mapping` field, used as a cross-validation
-signal in WP-09. Empty for post-Nov-2024 images.
+Legacy `comparison.advisory_rpm_mapping` field captured from pre-November
+2024 catalog records. Used as a cross-validation signal in WP-09; never
+authoritative.
+
+| Column | Type | Description |
+|---|---|---|
+| `image_id` | TEXT FK | References `container_image.image_id` |
+| `advisory_id` | TEXT | `RHSA-…` or `RHBA-…` |
+| `nvra` | TEXT | `name-version-release.arch` per the catalog field |
 
 ### `tracked_repository`
 
-The Section-6 repo set that drives both `cadence collect …` and
-`cadence analyze reconstruct`. Seeded on every collector run from
-`cadence/targets.py`. `rationale` documents *why* the repo is tracked, so
-the dataset's selection bias is auditable from the database alone.
+Audit table of every repository CADENCE iterates. Seeded from
+`cadence/targets.py` on every collector run.
+
+| Column | Type | Description |
+|---|---|---|
+| `repository` | TEXT PK | e.g. `ubi9/ubi` |
+| `source` | TEXT | `catalog` or `quay` |
+| `registry` | TEXT | `registry.access.redhat.com` or `quay.io` |
+| `tier` | TEXT | Per `cadence/targets.py` |
+| `rationale` | TEXT | Why this repo is tracked (selection-bias audit) |
+| `added_at` | TIMESTAMP | First time CADENCE saw this repo in `targets.py` |
 
 ### `gap_measurement`
 
 Output of `cadence analyze reconstruct` (WP-09). One row per
 `(rhsa_id, repository, architecture, package_name, fixed_version,
-methodology_version)`. `image_id` references the earliest image that
-carries the fix (NULL when not observed). `gap_{a,b,c}_seconds` are the
-durations defined in `methodology.md` §6; any may be NULL.
+methodology_version)`. Idempotency: DELETE WHERE methodology_version=? +
+INSERT.
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | INTEGER PK | Auto-incremented |
+| `rhsa_id` | TEXT FK | References `rhsa.rhsa_id` |
+| `repository` | TEXT | Tracked repo |
+| `tier` | TEXT | Per `cadence/targets.py` |
+| `architecture` | TEXT | Kernel arch |
+| `package_name` | TEXT | RPM name |
+| `fixed_version` | TEXT | EVR |
+| `rhsa_published_at` | TIMESTAMP | Copied from `rhsa.published_at` for self-contained rows |
+| `repo_first_seen_at` | TIMESTAMP | First UBI observation carrying `>= fixed_version` (nullable) |
+| `image_first_built_at` | TIMESTAMP | First catalog image carrying the fix (nullable) |
+| `image_id` | TEXT FK | That image's id (nullable) |
+| `gap_a_seconds` | INTEGER | `repo_first_seen_at - rhsa.published_at` (nullable) |
+| `gap_b_seconds` | INTEGER | `image_first_built_at - repo_first_seen_at` (nullable) |
+| `gap_c_seconds` | INTEGER | `image_first_built_at - rhsa.published_at` (nullable) |
+| `computed_at` | TIMESTAMP | When the reconstruction ran |
+| `methodology_version` | TEXT | Tag for this analysis run (default `v1`) |
 
 ### `rebuild_interval`
 
-Output of `cadence analyze reconstruct` (WP-09). One row per consecutive
-pair of `container_image` rows within a `(repository, architecture)`
-group. `interval_seconds` is the wall-clock distance between consecutive
-`build_date` values.
+One row per consecutive pair of `container_image` rows within a
+`(repository, architecture)` group. Full-table replace on every reconstruction.
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | INTEGER PK | Auto-incremented |
+| `repository` | TEXT | Container repo |
+| `tier` | TEXT | Per `cadence/targets.py` |
+| `architecture` | TEXT | Kernel arch |
+| `prior_image_id` | TEXT FK | Earlier image of the pair |
+| `next_image_id` | TEXT FK | Later image |
+| `prior_build_date` | TIMESTAMP | `container_image.build_date` of prior |
+| `next_build_date` | TIMESTAMP | `container_image.build_date` of next |
+| `interval_seconds` | INTEGER | `next - prior` in seconds, non-negative |
+| `computed_at` | TIMESTAMP | When the reconstruction ran |
 
 ## `cadence analyze` output schema (WP-10)
 

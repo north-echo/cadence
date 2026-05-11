@@ -1,17 +1,35 @@
 # CADENCE Methodology
 
-> **Status:** WP-02 stub. Full methodology delivered in WP-13.
+This document is the canonical reference for anyone reproducing CADENCE
+findings. It describes the data CADENCE collects, the choices it makes
+when computing patch-latency gaps and inter-build intervals, and the
+exact provenance of every number in the published dataset. Cite this
+file (and the dataset's `manifest.json`) when citing CADENCE in
+research.
 
-This document describes how CADENCE collects data and computes the patch-latency
-gaps defined in [`CADENCE-SPEC.md`](../CADENCE-SPEC.md). It is the canonical
-reference for anyone reproducing CADENCE findings.
+**All timestamps are UTC.** Stored values are ISO 8601 strings with
+explicit offsets. Reported values are in seconds in the database;
+the report and chart layers convert to days for display.
 
 ## 1. Data sources
 
-All data sources are public and require no authentication. See `CADENCE-SPEC.md`
-§3 for the authoritative list of endpoints. Collectors record raw upstream
-responses in `raw_json` columns so that any derived metric can be recomputed
-without re-fetching.
+All sources are public and require no authentication. The collectors
+record verbatim upstream payloads in `raw_json` columns so any derived
+metric can be recomputed without re-fetching.
+
+| Source | URL | Auth | Used for |
+|---|---|---|---|
+| Red Hat Security Data API | `https://access.redhat.com/hydra/rest/securitydata/csaf.json` | None | RHSA list + per-advisory CSAF v2 documents (RHSA metadata, CVE links, fixed packages, VEX statements) |
+| `cdn-ubi.redhat.com` | `https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi{8,9,10}/{ver}/{arch}/{baseos|appstream|codeready-builder}/os/repodata/` | None | UBI repodata (current state only — no archive) |
+| Red Hat Container Catalog API | `https://catalog.redhat.com/api/containers/v1/` | None | Image metadata, RPM manifests, legacy advisory_rpm_mapping for pre-Nov-2024 records |
+| Quay.io API | `https://quay.io/api/v1/repository/{ns}/{name}/...` | None | Tag history (start_ts, is_manifest_list) |
+| OCI Distribution v2 | `https://quay.io/v2/{ns}/{name}/manifests/{ref}` and `/blobs/{digest}` | None | Multi-arch manifest resolution + config-blob arch extraction for single-manifest tags |
+| Registry inspection | `skopeo inspect docker://…` | None | Cross-validation (WP-08) |
+
+**Spec discrepancy.** CADENCE-SPEC.md §3 references the retired
+`/cvrf.json` endpoint; the live one is `/csaf.json`. The data model
+absorbed this transparently; the only difference is the parser. See
+[`NOTES.md`](../NOTES.md).
 
 ## 2. Polling cadence
 
@@ -137,11 +155,29 @@ WP-10 reports median, p25/p75, p90/p95/p99, and mean across slices.
 Interval reconstruction is mechanical (no methodology choices), so a
 re-run replaces the table wholesale instead of carrying a version tag.
 
-## 8. Tier definitions
+## 8. Tier definitions and selection rationale
 
-See `CADENCE-SPEC.md` §6 and `cadence/targets.py`. Tier is the primary slicing
-dimension behind the headline finding (UBI ≈ OCP platform fast; layered Red
-Hat products slow; Quay-hosted content variable).
+A *tier* groups repositories that share a rebuild discipline. It is the
+primary slicing dimension behind the headline finding. The seven tiers
+are defined in `cadence/targets.py`:
+
+| Tier | Examples | Why it's its own tier |
+|---|---|---|
+| `ubi` | `ubi8/ubi`, `ubi9/ubi-minimal`, `ubi10/ubi-micro` | Base images; UBI is the upstream all the other RHEL-flavoured tiers depend on |
+| `ocp_platform` | `openshift4/ose-cli`, `ose-installer`, `ose-haproxy-router`, `ose-kube-rbac-proxy` | Core OpenShift platform; tracks UBI closely |
+| `rh_layered` | `rhacm2/console-rhel9`, `multicluster-engine/*`, `openshift-logging/*`, `odf4/*`, `openshift-service-mesh/*` | Red Hat layered products; the latency bottleneck |
+| `quay_redhat` | `redhat/ubi9`, `redhat/ubi9-minimal` | Red Hat content published to Quay; useful comparison vs. `registry.access.redhat.com` |
+| `quay_community` | `cilium/cilium`, `argoproj/argocd`, `prometheus/*`, `strimzi/*`, `kubevirt/virt-operator`, `projectquay/quay`, … | Major community projects commonly run on OpenShift |
+| `quay_partner` | `crunchydata/postgres-operator`, `bitnami/postgresql`, `bitnami/redis` | Certified-partner content; security-focused examples |
+| `other` | (none in v1) | Reserved for repos added at runtime |
+
+The per-repo selection rationale is preserved in the database
+(`tracked_repository.rationale`), so the dataset's selection bias is
+auditable from the database alone without consulting this document or
+the spec.
+
+See [`threats-to-validity.md`](threats-to-validity.md) for an honest
+discussion of why this list is what it is and what it excludes.
 
 ## 9. Edge cases
 
