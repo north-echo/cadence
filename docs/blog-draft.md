@@ -234,3 +234,74 @@ methodology becomes the foundation for whatever comes next.
 code: [github.com/north-echo/cadence](https://github.com/north-echo/cadence).
 Dataset DOI: [TBD]. Questions, corrections, and reproducibility issues
 welcome at [TBD].*
+
+---
+
+## Appendix A: Short-form versions
+
+### A.1. Social post (~300 words — LinkedIn / Hacker News body / link share)
+
+> *[Numbers in brackets are placeholders pending the full forward
+> collection.]*
+
+Most container-security thinking treats CVE patches as a binary
+state: patched or not. The reality is a staircase.
+
+A Red Hat security fix travels through at least four publicly
+observable rebuild boundaries before it reaches a workload running
+on your cluster: the RHSA itself, the UBI base image consuming from
+RHEL, OpenShift or layered Red Hat products rebuilding on UBI, and
+finally any Quay-hosted content that depends on those. Each hop has
+its own rebuild discipline. Cumulative latency is what users
+actually feel.
+
+We measured every one of those hops, end to end, for [N] RHSAs
+over [N] months, using only public unauthenticated data sources.
+The tool, the dataset, and the methodology are open: Apache-2.0
+code, CC-BY-4.0 dataset.
+
+The headline finding: **layered Red Hat products are the
+bottleneck.** UBI and the OpenShift platform sit near the floor
+(median ~[5-7] days from RHSA to a downstream image carrying the
+fix). RHACM, MCE, Service Mesh, ODF, and Logging consistently sit
+[3-4×] higher — median ~[16-26] days, p90 ~[40-60] days. The
+floor isn't where your exposure lives.
+
+If you operate OpenShift in production, your real patch-latency
+ceiling is the slowest tier you depend on, not the fastest. Your
+Gap-C window for any CVE that touches RHACM is dominated by RHACM's
+rebuild cadence — not by how fast UBI shipped the fix.
+
+There's a lot more in the post — methodology, threats to validity,
+how to reproduce, and where this is going next (cross-distro v2,
+downstream patching).
+
+→ https://northecho.dev/cadence-patch-latency
+→ Dataset (DOI [TBD]): [link]
+→ Source: github.com/north-echo/cadence
+
+### A.2. KubeCon / DevConf talk abstract (~180 words)
+
+**Title:** *The staircase: measuring multi-hop patch latency in the
+Red Hat container supply chain*
+
+A security fix doesn't reach your workload the moment Red Hat
+publishes an RHSA. It traverses at least four publicly observable
+rebuild boundaries — RHEL → UBI → OpenShift platform / layered
+products → Quay-hosted content — each owned by a different team
+with its own rebuild discipline. Most patch-latency discussion
+collapses this into a binary patched/unpatched state. The reality
+is a staircase, and the step heights vary by more than an order of
+magnitude across product tiers.
+
+This talk presents **CADENCE**, an open-source measurement tool and
+the dataset it produces: end-to-end patch latency, sliced by tier,
+severity, architecture, and time, derived entirely from public
+unauthenticated sources. We'll walk through the methodology, share
+[N] months of empirical findings (preview: the layered-product tier
+dominates everyone's real exposure window), discuss the threats to
+validity, and explain why building a faster downstream patcher
+makes sense only after you know which lane is actually slow.
+
+Audience: platform engineers, container security teams, and anyone
+who has ever written a patching SLO.
