@@ -238,11 +238,56 @@ def collect_repodata(settings: Settings, repos: str | None) -> None:
 
 
 @collect.command("catalog")
-@click.option("--repos", type=str, help="Comma-separated REPO (e.g. ubi9/ubi).")
-@click.option("--since", type=str, help="ISO date (YYYY-MM-DD). Incremental.")
-def collect_catalog(repos: str | None, since: str | None) -> None:
-    """Collect Red Hat Container Catalog images + RPM manifests. (WP-06)"""
-    _not_implemented("collect catalog")
+@click.option(
+    "--repos",
+    type=str,
+    help="Comma-separated REPO (e.g. ubi9/ubi). Defaults to every catalog-source "
+    "repo in cadence/targets.py.",
+)
+@click.option(
+    "--since",
+    type=str,
+    help="ISO date (YYYY-MM-DD). Restricts to images with creation_date >= this. "
+    "Default: full historical backfill.",
+)
+@click.option(
+    "--arches",
+    type=str,
+    default="x86_64,aarch64",
+    show_default=True,
+    help="Comma-separated kernel arches.",
+)
+@click.pass_obj
+def collect_catalog(
+    settings: Settings, repos: str | None, since: str | None, arches: str
+) -> None:
+    """Collect Red Hat Container Catalog images + RPM manifests."""
+    from cadence.collectors.catalog import CatalogCollector
+
+    repo_list = [r.strip() for r in repos.split(",")] if repos else None
+    arch_tuple = tuple(a.strip() for a in arches.split(","))
+
+    async def run() -> None:
+        async with CatalogCollector(settings, settings.db_path) as collector:
+            result = await collector.collect(
+                repos=repo_list, arches=arch_tuple, since=since
+            )
+            console.print(
+                f"[green]catalog[/green]: {result.records} image(s) "
+                f"in {result.duration_seconds:.1f}s "
+                f"({len(result.errors)} error(s))"
+            )
+            if result.errors:
+                for msg in result.errors[:10]:
+                    err_console.print(f"  [yellow]![/yellow] {msg}")
+                if len(result.errors) > 10:
+                    err_console.print(f"  … and {len(result.errors) - 10} more")
+                sys.exit(1)
+
+    settings.db_path.parent.mkdir(parents=True, exist_ok=True)
+    with connect(settings.db_path) as conn:
+        apply_migrations(conn)
+    asyncio.run(run())
 
 
 @collect.command("quay")

@@ -139,6 +139,14 @@ def by_source(source: Source) -> tuple[TrackedRepo, ...]:
     return tuple(r for r in ALL_REPOS if r.source == source)
 
 
+_BY_REPOSITORY = {r.repository: r for r in ALL_REPOS}
+
+
+def find(repository: str) -> TrackedRepo | None:
+    """Look up a configured TrackedRepo by repository name, or return None."""
+    return _BY_REPOSITORY.get(repository)
+
+
 __all__ = [
     "ALL_REPOS",
     "OCP_PLATFORM_REPOS",
@@ -152,4 +160,5 @@ __all__ = [
     "TrackedRepo",
     "by_source",
     "by_tier",
+    "find",
 ]
