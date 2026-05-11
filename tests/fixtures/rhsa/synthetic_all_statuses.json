@@ -1,0 +1,58 @@
+{
+  "document": {
+    "title": "Synthetic: covers all four VEX statuses",
+    "tracking": {
+      "id": "RHSA-2099:0001",
+      "initial_release_date": "2099-01-01T00:00:00+00:00",
+      "current_release_date": "2099-01-02T00:00:00+00:00"
+    },
+    "aggregate_severity": {"text": "Moderate"}
+  },
+  "product_tree": {
+    "branches": [
+      {
+        "name": "Red Hat",
+        "branches": [
+          {
+            "name": "Red Hat Enterprise Linux 9",
+            "product": {
+              "name": "Red Hat Enterprise Linux 9",
+              "product_id": "rhel-9",
+              "product_identification_helper": {
+                "cpe": "cpe:/o:redhat:enterprise_linux:9"
+              }
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "vulnerabilities": [
+    {
+      "cve": "CVE-2099-0001",
+      "flags": [
+        {
+          "label": "vulnerable_code_not_in_execute_path",
+          "product_ids": ["AppStream-9.4.0.GA:notaffected-pkg-0:1.0-1.el9.x86_64"]
+        }
+      ],
+      "product_status": {
+        "fixed": [
+          "AppStream-9.4.0.GA:fixed-pkg-0:1.0-1.el9.x86_64"
+        ],
+        "known_affected": [
+          "BaseOS-8.10.0.Z.MAIN.EUS:affected-pkg-0:0.9-2.el8.x86_64"
+        ],
+        "known_not_affected": [
+          "AppStream-9.4.0.GA:notaffected-pkg-0:1.0-1.el9.x86_64"
+        ],
+        "under_investigation": [
+          "AppStream-10.0.0.GA:investigating-pkg-0:2.0-1.el10.x86_64"
+        ],
+        "recommended": [
+          "AppStream-9.4.0.GA:recommendation-pkg-0:1.0-1.el9.x86_64"
+        ]
+      }
+    }
+  ]
+}

@@ -158,11 +158,48 @@ def collect_rhsa(
 
 
 @collect.command("csaf")
-@click.option("--rhsa", "rhsa_id", type=str, help="Collect a specific RHSA-ID.")
+@click.option(
+    "--rhsa",
+    "rhsa_ids",
+    type=str,
+    multiple=True,
+    help="Collect specific RHSA-ID(s); may be repeated.",
+)
 @click.option("--all-known", is_flag=True, help="Collect CSAF for every known RHSA.")
-def collect_csaf(rhsa_id: str | None, all_known: bool) -> None:
-    """Collect CSAF/VEX documents for known RHSAs. (WP-04)"""
-    _not_implemented("collect csaf")
+@click.pass_obj
+def collect_csaf(
+    settings: Settings, rhsa_ids: tuple[str, ...], all_known: bool
+) -> None:
+    """Collect CSAF/VEX documents and persist VEX statements."""
+    from cadence.collectors.csaf import CSAFCollector
+
+    if not rhsa_ids and not all_known:
+        err_console.print(
+            "[red]error[/red]: pass --rhsa RHSA-ID (repeatable) or --all-known"
+        )
+        sys.exit(2)
+
+    async def run() -> None:
+        async with CSAFCollector(settings, settings.db_path) as collector:
+            result = await collector.collect(
+                rhsa_ids=list(rhsa_ids) or None, all_known=all_known
+            )
+            console.print(
+                f"[green]csaf[/green]: {result.records} RHSA(s) updated "
+                f"in {result.duration_seconds:.1f}s "
+                f"({len(result.errors)} error(s))"
+            )
+            if result.errors:
+                for msg in result.errors[:10]:
+                    err_console.print(f"  [yellow]![/yellow] {msg}")
+                if len(result.errors) > 10:
+                    err_console.print(f"  … and {len(result.errors) - 10} more")
+                sys.exit(1)
+
+    settings.db_path.parent.mkdir(parents=True, exist_ok=True)
+    with connect(settings.db_path) as conn:
+        apply_migrations(conn)
+    asyncio.run(run())
 
 
 @collect.command("repodata")

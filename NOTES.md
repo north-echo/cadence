@@ -24,9 +24,29 @@ model in `001_initial.sql` did not need to change — `rhsa`, `rhsa_cve`, and
 
 **WP-04 implication:** §WP-04 already pointed at
 `/security/data/csaf/v2/advisories/{rhsa-lower}.json` for VEX statements. The
-WP-03 detail endpoint and the WP-04 endpoint return the same CSAF document via
-two different paths; WP-04 may end up reusing the WP-03 detail fetch rather
-than going to the alternate URL. Decide when implementing WP-04.
+WP-03 detail endpoint and the WP-04 endpoint return the same CSAF document
+(byte-formatting differs, JSON content is identical). WP-04 nonetheless fetches
+from the spec'd URL so it can run standalone (e.g., to backfill VEX for RHSAs
+already in the database). The spec'd `access.redhat.com` path 301-redirects to
+`security.access.redhat.com`; `HTTPClient` follows redirects transparently.
+
+## RHSA CSAF docs only carry `fixed` (WP-04)
+
+**Date discovered:** 2026-05-10
+**Spec text:** §WP-04 acceptance: "Test fixtures cover all four VEX status
+values" (`fixed`, `affected`, `not_affected`, `under_investigation`).
+
+**Reality:** RHSA-level CSAF v2 documents only carry `fixed` product_status in
+practice — an RHSA exists precisely to announce a fix. The other three
+statuses live in CVE-level CSAF documents (`/v2/csaf/{cve}.json`), which are
+out of scope for WP-04 as currently specified.
+
+**What we did:** The parser handles all four CSAF status buckets (per the
+mapping in `cadence/collectors/csaf.py`). Acceptance is exercised via a
+synthetic fixture (`tests/fixtures/rhsa/synthetic_all_statuses.json`) that
+covers all four, plus a real-data test asserting the observed `fixed`-only
+shape of real RHSAs. If we later decide we want non-`fixed` VEX coverage,
+extend WP-04 (or add a WP-04b) to pull CVE-level CSAF documents.
 
 ## sqlite3 default TIMESTAMP converter (WP-03)
 
