@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Virtual envs
+.venv/
+venv/
+
+# uv
+.python-version
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Claude Code local state
+.claude/
+
+# CADENCE local state (should live under XDG dirs, not repo)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+.cache/

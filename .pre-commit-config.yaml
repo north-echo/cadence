@@ -1,0 +1,35 @@
+# Pre-commit hooks for CADENCE.
+#
+# Install with: uv tool install pre-commit && pre-commit install --hook-type commit-msg
+#
+# The DCO hook enforces that every commit message contains a
+# "Signed-off-by: <Name> <email>" trailer. Per CADENCE-SPEC.md §11, the
+# canonical sign-off is "Signed-off-by: Christopher Lusk <clusk@northecho.dev>".
+# Use `git commit -s` to add it automatically.
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.4.4
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: dco-sign-off
+        name: Require DCO Signed-off-by trailer
+        entry: scripts/check-dco.sh
+        language: script
+        stages: [commit-msg]
+        pass_filenames: true

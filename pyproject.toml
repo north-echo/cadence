@@ -1,0 +1,80 @@
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ne-cadence"
+version = "0.1.0.dev0"
+description = "Container Supply Chain Patch Latency Measurement"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+authors = [
+    { name = "Christopher Lusk", email = "clusk@northecho.dev" },
+]
+keywords = ["container", "supply-chain", "security", "rhsa", "ubi", "patch-latency"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: System :: Monitoring",
+]
+dependencies = [
+    "click>=8.1",
+    "rich>=13.7",
+    "httpx>=0.27",
+    "pydantic>=2.6",
+    "pydantic-settings>=2.2",
+    "structlog>=24.1",
+    "matplotlib>=3.8",
+    "plotly>=5.19",
+]
+
+[project.optional-dependencies]
+# Per CADENCE-SPEC.md WP-01: rpm Python bindings as an optional dep,
+# system-provided on Fedora (the Containerfile installs `python3-rpm`).
+rpm = ["rpm-py-installer>=1.0"]
+
+dev = [
+    "pytest>=8.0",
+    "pytest-httpx>=0.30",
+    "hypothesis>=6.100",
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
+
+[project.scripts]
+cadence = "cadence.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/north-echo/cadence"
+Repository = "https://github.com/north-echo/cadence"
+Issues = "https://github.com/north-echo/cadence/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["cadence"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"cadence/schema" = "cadence/schema"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
