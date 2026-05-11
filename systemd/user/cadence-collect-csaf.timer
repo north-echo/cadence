@@ -1,0 +1,13 @@
+[Unit]
+Description=CADENCE: collect CSAF every 4 hours (offset 30min after RHSA)
+Documentation=https://github.com/north-echo/cadence/blob/main/docs/operations.md
+
+[Timer]
+# 30 min after RHSA so CSAF runs against fresh RHSA data.
+OnCalendar=*-*-* 02,06,10,14,18,22:47:00
+RandomizedDelaySec=10min
+Persistent=true
+Unit=cadence-collect-csaf.service
+
+[Install]
+WantedBy=timers.target

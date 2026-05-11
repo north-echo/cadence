@@ -1,0 +1,12 @@
+[Unit]
+Description=CADENCE: collect Container Catalog every 12 hours (incremental)
+Documentation=https://github.com/north-echo/cadence/blob/main/docs/operations.md
+
+[Timer]
+OnCalendar=*-*-* 03,15:47:00
+RandomizedDelaySec=10min
+Persistent=true
+Unit=cadence-collect-catalog.service
+
+[Install]
+WantedBy=timers.target

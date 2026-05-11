@@ -1,0 +1,23 @@
+[Unit]
+Description=CADENCE: collect Red Hat Container Catalog (incremental)
+Documentation=https://github.com/north-echo/cadence/blob/main/docs/operations.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment="PATH=%h/.local/bin:/usr/local/bin:/usr/bin"
+# Incremental collection: --since restricts to records created in the last
+# 36 hours, comfortably covering the 12-hour timer interval plus the 10-minute
+# RandomizedDelaySec and any prior failed run. The full historical backfill
+# is a manual `cadence collect catalog` invocation — *not* timer-driven.
+ExecStart=/bin/sh -c 'exec %h/.local/bin/cadence collect catalog --since $$(date --utc --date="36 hours ago" +%%Y-%%m-%%d)'
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=4
+MemoryHigh=900M
+MemoryMax=1G
+TasksMax=64
+
+[Install]
+WantedBy=default.target

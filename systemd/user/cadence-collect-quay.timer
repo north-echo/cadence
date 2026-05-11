@@ -1,0 +1,12 @@
+[Unit]
+Description=CADENCE: collect Quay every 12 hours
+Documentation=https://github.com/north-echo/cadence/blob/main/docs/operations.md
+
+[Timer]
+OnCalendar=*-*-* 09,21:17:00
+RandomizedDelaySec=10min
+Persistent=true
+Unit=cadence-collect-quay.service
+
+[Install]
+WantedBy=timers.target

@@ -31,6 +31,7 @@ from cadence.db import (
     apply_migrations,
     connect,
     list_migrations,
+    record_collection_run,
 )
 
 console = Console()
@@ -42,6 +43,19 @@ def _not_implemented(name: str) -> None:
         f"[yellow]cadence {name}[/yellow]: not implemented yet (stub from WP-01)."
     )
     sys.exit(2)
+
+
+def _record_run(settings: Settings, source: str, result) -> None:
+    """Append a `collection_run` row for one collector invocation."""
+    with connect(settings.db_path) as conn:
+        record_collection_run(
+            conn,
+            source=source,
+            started_at=result.started_at.isoformat(),
+            completed_at=result.completed_at.isoformat(),
+            records=result.records,
+            errors=result.errors,
+        )
 
 
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
@@ -139,6 +153,7 @@ def collect_rhsa(
             result = await collector.collect(
                 since=since, until=until, max_pages=max_pages
             )
+            _record_run(settings, "rhsa", result)
             console.print(
                 f"[green]rhsa[/green]: {result.records} RHSA(s) persisted "
                 f"in {result.duration_seconds:.1f}s "
@@ -184,6 +199,7 @@ def collect_csaf(
             result = await collector.collect(
                 rhsa_ids=list(rhsa_ids) or None, all_known=all_known
             )
+            _record_run(settings, "csaf", result)
             console.print(
                 f"[green]csaf[/green]: {result.records} RHSA(s) updated "
                 f"in {result.duration_seconds:.1f}s "
@@ -219,6 +235,7 @@ def collect_repodata(settings: Settings, repos: str | None) -> None:
     async def run() -> None:
         async with RepoDataCollector(settings, settings.db_path) as collector:
             result = await collector.collect(repos=repo_list)
+            _record_run(settings, "repodata", result)
             console.print(
                 f"[green]repodata[/green]: {result.records} new observation(s) "
                 f"in {result.duration_seconds:.1f}s "
@@ -272,6 +289,7 @@ def collect_catalog(
             result = await collector.collect(
                 repos=repo_list, arches=arch_tuple, since=since
             )
+            _record_run(settings, "catalog", result)
             console.print(
                 f"[green]catalog[/green]: {result.records} image(s) "
                 f"in {result.duration_seconds:.1f}s "
@@ -307,6 +325,7 @@ def collect_quay(settings: Settings, repos: str | None) -> None:
     async def run() -> None:
         async with QuayCollector(settings, settings.db_path) as collector:
             result = await collector.collect(repos=repo_list)
+            _record_run(settings, "quay", result)
             console.print(
                 f"[green]quay[/green]: {result.records} image row(s) "
                 f"in {result.duration_seconds:.1f}s "
@@ -743,9 +762,45 @@ def export_raw_cmd(settings: Settings, output_file: Path) -> None:
 
 
 @main.command()
-def health() -> None:
-    """Report last-successful-collection per source. (WP-14)"""
-    _not_implemented("health")
+@click.pass_obj
+def health(settings: Settings) -> None:
+    """Report last-successful-collection per source.
+
+    Exits non-zero when any tracked source has been silent for more than
+    twice its expected interval.
+    """
+    from cadence.health import health_check, render_health
+
+    with connect(settings.db_path) as conn:
+        result = health_check(conn)
+    render_health(result, console)
+    if not result.overall_ok:
+        sys.exit(1)
+
+
+@main.group()
+def metrics() -> None:
+    """Optional Prometheus-style metrics endpoint."""
+
+
+@metrics.command("serve")
+@click.option(
+    "--bind",
+    type=str,
+    default="127.0.0.1",
+    show_default=True,
+    help="Bind address. Loopback by default; never bind a public interface "
+    "for the unauthenticated endpoint.",
+)
+@click.option(
+    "--port", type=int, default=9101, show_default=True,
+)
+@click.pass_obj
+def metrics_serve(settings: Settings, bind: str, port: int) -> None:
+    """Serve a /metrics endpoint for Prometheus scraping."""
+    from cadence.metrics import serve_metrics
+
+    serve_metrics(settings, console=console, bind=bind, port=port)
 
 
 @main.command()

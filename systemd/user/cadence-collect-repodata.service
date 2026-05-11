@@ -1,0 +1,19 @@
+[Unit]
+Description=CADENCE: collect UBI repodata
+Documentation=https://github.com/north-echo/cadence/blob/main/docs/operations.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment="PATH=%h/.local/bin:/usr/local/bin:/usr/bin"
+ExecStart=%h/.local/bin/cadence collect repodata
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=4
+MemoryHigh=900M
+MemoryMax=1G
+TasksMax=64
+
+[Install]
+WantedBy=default.target

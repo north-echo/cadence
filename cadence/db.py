@@ -68,15 +68,17 @@ def _ensure_migrations_table(conn: sqlite3.Connection) -> None:
     )
 
 
-_COMMENT_RE = re.compile(r"^\s*--.*$", re.MULTILINE)
+_COMMENT_RE = re.compile(r"--[^\n]*")
 
 
 def _split_statements(sql: str) -> list[str]:
     """Split a SQL script into individual statements.
 
-    Strips ``--`` line comments first, then splits on semicolons. Adequate for
-    the schema CADENCE ships, which contains only DDL and no string literals
-    that include semicolons or comment markers.
+    Strips every ``--`` comment (whether the line starts with one or not, since
+    inline comments can contain semicolons that the naive split below would
+    otherwise treat as statement terminators), then splits on semicolons.
+    Adequate for the schema CADENCE ships, which contains only DDL and no
+    string literals that include comment markers.
     """
     cleaned = _COMMENT_RE.sub("", sql)
     return [stmt.strip() for stmt in cleaned.split(";") if stmt.strip()]
@@ -105,4 +107,42 @@ def apply_migrations(conn: sqlite3.Connection) -> list[str]:
     return applied
 
 
-__all__ = ["DEFAULT_DB_PATH", "apply_migrations", "connect", "list_migrations"]
+def record_collection_run(
+    conn: sqlite3.Connection,
+    *,
+    source: str,
+    started_at: str,
+    completed_at: str,
+    records: int,
+    errors: list[str] | None = None,
+) -> None:
+    """Append one row to ``collection_run``.
+
+    Called by each ``cadence collect <source>`` CLI command after the
+    collector finishes (whether or not it raised). ``cadence health`` and
+    the optional metrics endpoint read this table.
+    """
+    import json as _json
+
+    errs = errors or []
+    conn.execute(
+        """
+        INSERT INTO collection_run
+            (source, started_at, completed_at, records, errors, error_messages)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            source, started_at, completed_at, records,
+            len(errs),
+            _json.dumps(errs) if errs else None,
+        ),
+    )
+
+
+__all__ = [
+    "DEFAULT_DB_PATH",
+    "apply_migrations",
+    "connect",
+    "list_migrations",
+    "record_collection_run",
+]

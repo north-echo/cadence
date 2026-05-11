@@ -1,0 +1,15 @@
+[Unit]
+Description=CADENCE: collect RHSA list every 4 hours
+Documentation=https://github.com/north-echo/cadence/blob/main/docs/operations.md
+
+[Timer]
+# Every 4 hours at minute :17. Offset (:17 rather than :00/:15/:30/:45) keeps
+# the timer off conventional cron rails and away from Fluxgate. The 10-minute
+# randomized delay absorbs any residual overlap.
+OnCalendar=*-*-* 02,06,10,14,18,22:17:00
+RandomizedDelaySec=10min
+Persistent=true
+Unit=cadence-collect-rhsa.service
+
+[Install]
+WantedBy=timers.target

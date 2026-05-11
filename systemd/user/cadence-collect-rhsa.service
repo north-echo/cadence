@@ -1,0 +1,22 @@
+[Unit]
+Description=CADENCE: collect Red Hat Security Advisories
+Documentation=https://github.com/north-echo/cadence/blob/main/docs/operations.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Resolve `cadence` via the user's local pip install. If you installed via
+# uv, replace this with the venv's binary (e.g. %h/cadence/.venv/bin/cadence).
+Environment="PATH=%h/.local/bin:/usr/local/bin:/usr/bin"
+ExecStart=%h/.local/bin/cadence collect rhsa
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=4
+# Respectful resource ceilings — see docs/operations.md for the rationale.
+MemoryHigh=900M
+MemoryMax=1G
+TasksMax=64
+
+[Install]
+WantedBy=default.target
