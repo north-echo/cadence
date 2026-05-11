@@ -400,10 +400,34 @@ def analyze() -> None:
 
 
 @analyze.command("reconstruct")
-@click.option("--methodology-version", type=str, help="Methodology version tag.")
-def analyze_reconstruct(methodology_version: str | None) -> None:
-    """Reconstruct gap_measurement + rebuild_interval from raw data. (WP-09)"""
-    _not_implemented("analyze reconstruct")
+@click.option(
+    "--methodology-version",
+    type=str,
+    default=None,
+    help="Tag for this run (default: 'v1'). Multiple versions coexist.",
+)
+@click.pass_obj
+def analyze_reconstruct(
+    settings: Settings, methodology_version: str | None
+) -> None:
+    """Reconstruct gap_measurement + rebuild_interval from raw data."""
+    from cadence.analysis.reconstruct import DEFAULT_METHODOLOGY_VERSION, reconstruct
+
+    version = methodology_version or DEFAULT_METHODOLOGY_VERSION
+
+    with connect(settings.db_path) as conn:
+        result = reconstruct(conn, methodology_version=version)
+
+    rate = result.cross_check_match_rate
+    rate_str = f"{rate * 100:.1f}%" if rate is not None else "n/a"
+    console.print(
+        f"[green]reconstruct[/green] (methodology={version}): "
+        f"{result.gap_rows_written} gap row(s), "
+        f"{result.intervals_written} interval(s), "
+        f"{result.not_affected_skipped} VEX not_affected skipped, "
+        f"cross-check {result.cross_check_matched}/{result.cross_check_total} "
+        f"({rate_str}) in {result.duration_seconds:.1f}s"
+    )
 
 
 @analyze.command("gaps")
