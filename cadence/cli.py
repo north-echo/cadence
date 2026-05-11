@@ -600,23 +600,79 @@ def report() -> None:
 
 
 @report.command("summary")
-def report_summary() -> None:
+@click.option(
+    "--methodology-version", type=str, default=None,
+    help="Methodology version tag (default: 'v1').",
+)
+@click.pass_obj
+def report_summary(settings: Settings, methodology_version: str | None) -> None:
     """Print a Rich-formatted summary of all findings."""
-    _not_implemented("report summary")
+    from cadence.analysis.reconstruct import DEFAULT_METHODOLOGY_VERSION
+    from cadence.reports.summary import render_summary
+
+    version = methodology_version or DEFAULT_METHODOLOGY_VERSION
+    with connect(settings.db_path) as conn:
+        render_summary(conn, console, methodology_version=version)
 
 
 @report.command("markdown")
-@click.option("--output", type=click.Path(dir_okay=False, path_type=Path), required=True)
-def report_markdown(output: Path) -> None:
+@click.option(
+    "--output", type=click.Path(dir_okay=False, path_type=Path), required=True
+)
+@click.option(
+    "--methodology-version", type=str, default=None,
+    help="Methodology version tag (default: 'v1').",
+)
+@click.option(
+    "--charts-dir",
+    type=str, default="charts", show_default=True,
+    help="Relative directory for chart images referenced from the report.",
+)
+@click.pass_obj
+def report_markdown_cmd(
+    settings: Settings,
+    output: Path,
+    methodology_version: str | None,
+    charts_dir: str,
+) -> None:
     """Write a comprehensive Markdown report."""
-    _not_implemented("report markdown")
+    from cadence.analysis.reconstruct import DEFAULT_METHODOLOGY_VERSION
+    from cadence.reports.markdown import render_markdown
+
+    version = methodology_version or DEFAULT_METHODOLOGY_VERSION
+    with connect(settings.db_path) as conn:
+        render_markdown(
+            conn, output,
+            methodology_version=version, charts_dir_relative=charts_dir,
+        )
+    console.print(f"[green]markdown[/green]: wrote {output}")
 
 
 @report.command("charts")
-@click.option("--output-dir", type=click.Path(file_okay=False, path_type=Path), required=True)
-def report_charts(output_dir: Path) -> None:
+@click.option(
+    "--output-dir",
+    type=click.Path(file_okay=False, path_type=Path), required=True
+)
+@click.option(
+    "--methodology-version", type=str, default=None,
+    help="Methodology version tag (default: 'v1').",
+)
+@click.pass_obj
+def report_charts_cmd(
+    settings: Settings, output_dir: Path, methodology_version: str | None
+) -> None:
     """Write publication-ready PNG + HTML charts."""
-    _not_implemented("report charts")
+    from cadence.analysis.reconstruct import DEFAULT_METHODOLOGY_VERSION
+    from cadence.reports.charts import render_all
+
+    version = methodology_version or DEFAULT_METHODOLOGY_VERSION
+    with connect(settings.db_path) as conn:
+        results = render_all(conn, output_dir, methodology_version=version)
+    n_empty = sum(1 for r in results if r.skipped_empty)
+    console.print(
+        f"[green]charts[/green]: wrote {len(results)} chart(s) to "
+        f"{output_dir} ({n_empty} empty placeholder(s))"
+    )
 
 
 # ---------- export ----------
