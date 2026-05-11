@@ -104,7 +104,32 @@ Hat products slow; Quay-hosted content variable).
 
 > Filled in by WP-09.
 
-## 10. Known limitations
+## 10. Verification & authoritative sources
+
+CADENCE cross-checks the database against the live registry via
+`cadence verify image REPO:TAG` and `cadence verify random --sample N`. Both
+commands wrap `skopeo inspect` (WP-08); the tool is a soft dependency. When
+`skopeo` is absent, verification reports `skopeo_unavailable` and exits
+normally — the dataset is unaffected.
+
+When a verification surfaces a discrepancy, **the Red Hat Container Catalog
+API is the authoritative source.** Reasons:
+
+* The catalog is the upstream record-of-truth for image metadata
+  (architecture, advisory mapping, RPM manifest). The registry serves
+  whatever artifact a `docker pull` would resolve, and that may have drifted
+  for benign reasons (re-tag, mirror lag, manifest list rewrite).
+* Skopeo gives a point-in-time snapshot. The catalog stores the canonical
+  history the dataset is built on.
+* A divergence between skopeo and the catalog means *something is worth
+  looking at*, not that CADENCE should rewrite its row.
+
+Verification records discrepancies in the run output; no rows are modified
+on the basis of a single skopeo snapshot. Operators investigating a
+discrepancy should run `cadence collect catalog --repos REPO,...` to
+re-pull the canonical metadata.
+
+## 11. Known limitations
 
 * **Gap A is forward-only.** Pre-flight spike confirmed `cdn-ubi.redhat.com`
   exposes only current repodata.

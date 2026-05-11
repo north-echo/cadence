@@ -333,18 +333,62 @@ def verify() -> None:
     """Registry verification commands. (WP-08)"""
 
 
+def _print_verification(results: list) -> None:
+    from cadence.collectors.registry import summarize
+
+    counts = summarize(results)
+    for r in results:
+        if r.status == "ok":
+            console.print(
+                f"  [green]ok[/green]       {r.reference}  ({r.image_id[:12]})"
+            )
+        elif r.status == "drift":
+            console.print(
+                f"  [yellow]drift[/yellow]    {r.reference}  ({r.image_id[:12]})"
+            )
+            for d in r.discrepancies:
+                err_console.print(f"           {d}")
+        elif r.status == "not_in_database":
+            err_console.print(f"  [yellow]missing[/yellow]  {r.reference} (not in db)")
+        elif r.status == "skopeo_unavailable":
+            err_console.print(
+                f"  [yellow]skipped[/yellow]  {r.reference} (skopeo not installed)"
+            )
+        else:  # error
+            err_console.print(
+                f"  [red]error[/red]    {r.reference}: {r.error or 'unknown'}"
+            )
+    pretty = ", ".join(f"{k}={v}" for k, v in sorted(counts.items()))
+    console.print(f"[green]verify[/green]: {pretty or 'no results'}")
+
+
 @verify.command("image")
 @click.argument("ref")
-def verify_image(ref: str) -> None:
+@click.pass_obj
+def verify_image_cmd(settings: Settings, ref: str) -> None:
     """Cross-validate a single REPO:TAG against the database."""
-    _not_implemented("verify image")
+    from cadence.collectors.registry import verify_image
+
+    if ":" not in ref:
+        err_console.print("[red]error[/red]: REF must be REPO:TAG")
+        sys.exit(2)
+    repository, tag = ref.rsplit(":", 1)
+
+    with connect(settings.db_path) as conn:
+        results = verify_image(conn, repository, tag)
+    _print_verification(results)
 
 
 @verify.command("random")
 @click.option("--sample", "sample", type=int, default=10, show_default=True)
-def verify_random(sample: int) -> None:
+@click.pass_obj
+def verify_random_cmd(settings: Settings, sample: int) -> None:
     """Cross-validate N randomly selected images."""
-    _not_implemented("verify random")
+    from cadence.collectors.registry import verify_random_sample
+
+    with connect(settings.db_path) as conn:
+        results = verify_random_sample(conn, sample)
+    _print_verification(results)
 
 
 # ---------- analyze ----------
