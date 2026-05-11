@@ -430,19 +430,165 @@ def analyze_reconstruct(
     )
 
 
+def _render_distribution(
+    stats: list, *, facet_label: str, value_unit: str, fmt: str
+) -> None:
+    """Print a list of DistributionStats as Rich table, JSON, or CSV."""
+    import csv
+
+    if fmt == "json":
+        console.print_json(data=[s.as_dict() for s in stats])
+        return
+    if fmt == "csv":
+        import io
+
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow([
+            "facet", "count", "mean", "stddev",
+            "median", "p25", "p75", "p90", "p95", "p99",
+            "low_n_warning",
+        ])
+        for s in stats:
+            writer.writerow([
+                s.facet, s.count,
+                f"{s.mean:.2f}" if s.mean is not None else "",
+                f"{s.stddev:.2f}" if s.stddev is not None else "",
+                f"{s.median:.2f}" if s.median is not None else "",
+                f"{s.p25:.2f}" if s.p25 is not None else "",
+                f"{s.p75:.2f}" if s.p75 is not None else "",
+                f"{s.p90:.2f}" if s.p90 is not None else "",
+                f"{s.p95:.2f}" if s.p95 is not None else "",
+                f"{s.p99:.2f}" if s.p99 is not None else "",
+                "yes" if s.low_n_warning else "",
+            ])
+        click.echo(buf.getvalue().rstrip("\n"))
+        return
+
+    # default: Rich table
+    from rich.table import Table
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column(facet_label)
+    table.add_column("N", justify="right")
+    for header in ("median", "p25", "p75", "p90", "p95", "p99", "mean", "stddev"):
+        table.add_column(f"{header} ({value_unit})", justify="right")
+    for s in stats:
+        warn = " [yellow]⚠[/yellow]" if s.low_n_warning else ""
+        def fmt_v(v: float | None) -> str:
+            if v is None:
+                return "—"
+            return f"{v:,.0f}"
+        table.add_row(
+            f"{s.facet}{warn}", str(s.count),
+            fmt_v(s.median), fmt_v(s.p25), fmt_v(s.p75),
+            fmt_v(s.p90), fmt_v(s.p95), fmt_v(s.p99),
+            fmt_v(s.mean), fmt_v(s.stddev),
+        )
+    console.print(table)
+    if any(s.low_n_warning for s in stats):
+        err_console.print(
+            "[yellow]⚠[/yellow] one or more slices have N<30; "
+            "percentiles are unreliable at this sample size."
+        )
+
+
 @analyze.command("gaps")
-@click.option("--gap", type=click.Choice(["A", "B", "C"]), help="Restrict to one gap.")
+@click.option(
+    "--gap",
+    type=click.Choice(["A", "B", "C"]),
+    default="C",
+    show_default=True,
+    help="Which gap to summarize.",
+)
 @click.option("--slice-by", "slice_by", type=str, help="Facet to slice by.")
-def analyze_gaps(gap: str | None, slice_by: str | None) -> None:
-    """Compute gap distributions, optionally sliced by facet. (WP-10)"""
-    _not_implemented("analyze gaps")
+@click.option("--tier", type=str, help="Restrict to a single tier.")
+@click.option(
+    "--top",
+    "top_n",
+    type=int,
+    default=None,
+    help="When slicing by a high-cardinality facet, keep only the N "
+    "facets with the most observations.",
+)
+@click.option(
+    "--methodology-version",
+    type=str,
+    default=None,
+    help="Methodology version tag (default: 'v1').",
+)
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["table", "json", "csv"]),
+    default="table",
+    show_default=True,
+)
+@click.pass_obj
+def analyze_gaps(
+    settings: Settings,
+    gap: str,
+    slice_by: str | None,
+    tier: str | None,
+    top_n: int | None,
+    methodology_version: str | None,
+    fmt: str,
+) -> None:
+    """Compute gap distributions, optionally sliced by facet."""
+    from cadence.analysis.gaps import gap_distribution
+    from cadence.analysis.reconstruct import DEFAULT_METHODOLOGY_VERSION
+
+    version = methodology_version or DEFAULT_METHODOLOGY_VERSION
+    with connect(settings.db_path) as conn:
+        stats = gap_distribution(
+            conn,
+            gap=gap,  # type: ignore[arg-type]
+            slice_by=slice_by,
+            methodology_version=version,
+            tier=tier,
+            top_n=top_n,
+        )
+    _render_distribution(
+        stats,
+        facet_label=slice_by or f"Gap {gap} (overall)",
+        value_unit="s",
+        fmt=fmt,
+    )
 
 
 @analyze.command("intervals")
 @click.option("--slice-by", "slice_by", type=str, help="Facet to slice by.")
-def analyze_intervals(slice_by: str | None) -> None:
-    """Compute inter-build interval distributions. (WP-10)"""
-    _not_implemented("analyze intervals")
+@click.option("--tier", type=str, help="Restrict to a single tier.")
+@click.option("--top", "top_n", type=int, default=None,
+              help="Keep top-N facets by observation count.")
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["table", "json", "csv"]),
+    default="table",
+    show_default=True,
+)
+@click.pass_obj
+def analyze_intervals(
+    settings: Settings,
+    slice_by: str | None,
+    tier: str | None,
+    top_n: int | None,
+    fmt: str,
+) -> None:
+    """Compute inter-build interval distributions."""
+    from cadence.analysis.intervals import interval_distribution
+
+    with connect(settings.db_path) as conn:
+        stats = interval_distribution(
+            conn, slice_by=slice_by, tier=tier, top_n=top_n
+        )
+    _render_distribution(
+        stats,
+        facet_label=slice_by or "Inter-build interval (overall)",
+        value_unit="s",
+        fmt=fmt,
+    )
 
 
 # ---------- report ----------

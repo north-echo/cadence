@@ -150,9 +150,55 @@ def reconstruct_intervals(conn: sqlite3.Connection) -> int:
     return len(intervals)
 
 
+def interval_distribution(
+    conn: sqlite3.Connection,
+    *,
+    slice_by: str | None = None,
+    tier: str | None = None,
+    top_n: int | None = None,
+) -> list:
+    """Aggregate ``rebuild_interval.interval_seconds`` into per-facet stats.
+
+    Returns a list of ``DistributionStats`` (imported lazily to avoid a
+    cycle with :mod:`cadence.analysis.slice`).
+    """
+    from cadence.analysis.slice import (
+        DistributionStats,
+        compute_distribution,
+        resolve_interval_facet,
+    )
+
+    facet = resolve_interval_facet(slice_by)
+    sql_parts = [
+        f"SELECT {facet.select_expr} AS facet_value, i.interval_seconds AS value",
+        "  FROM rebuild_interval AS i",
+        " WHERE 1=1",
+    ]
+    params: list[object] = []
+    if tier:
+        sql_parts.append("   AND i.tier = ?")
+        params.append(tier)
+    sql = "\n".join(sql_parts)
+
+    bucket: dict[str, list[float]] = {}
+    for facet_value, value in conn.execute(sql, params).fetchall():
+        key = "<null>" if facet_value is None else str(facet_value)
+        bucket.setdefault(key, []).append(float(value))
+
+    stats: list[DistributionStats] = [
+        compute_distribution(values, facet=key)
+        for key, values in bucket.items()
+    ]
+    stats.sort(key=lambda s: (-s.count, s.facet))
+    if top_n is not None and slice_by is not None:
+        stats = stats[:top_n]
+    return stats
+
+
 __all__ = [
     "IntervalRow",
     "compute_intervals",
+    "interval_distribution",
     "persist_intervals",
     "reconstruct_intervals",
 ]
