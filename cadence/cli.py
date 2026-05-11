@@ -684,17 +684,59 @@ def export() -> None:
 
 
 @export.command("dataset")
-@click.option("--output-dir", type=click.Path(file_okay=False, path_type=Path), required=True)
-def export_dataset(output_dir: Path) -> None:
+@click.option(
+    "--output-dir",
+    type=click.Path(file_okay=False, path_type=Path), required=True,
+)
+@click.option(
+    "--methodology-version", type=str, default=None,
+    help="Methodology version tag (default: 'v1').",
+)
+@click.pass_obj
+def export_dataset_cmd(
+    settings: Settings, output_dir: Path, methodology_version: str | None
+) -> None:
     """Write the publishable CC-BY-4.0 dataset (parquet/csv/jsonl + manifest)."""
-    _not_implemented("export dataset")
+    from cadence.analysis.export import ExportDependencyMissing, export_dataset
+    from cadence.analysis.reconstruct import DEFAULT_METHODOLOGY_VERSION
+
+    version = methodology_version or DEFAULT_METHODOLOGY_VERSION
+    try:
+        with connect(settings.db_path) as conn:
+            manifest = export_dataset(
+                conn, output_dir, methodology_version=version
+            )
+    except ExportDependencyMissing as exc:
+        err_console.print(f"[red]error[/red]: {exc}")
+        sys.exit(2)
+    console.print(
+        f"[green]export dataset[/green]: {manifest.row_count} row(s) "
+        f"({manifest.rhsa_count} RHSA(s)), methodology=[cyan]{version}[/cyan], "
+        f"to {output_dir}"
+    )
 
 
 @export.command("raw")
-@click.option("--output-file", type=click.Path(dir_okay=False, path_type=Path), required=True)
-def export_raw(output_file: Path) -> None:
+@click.option(
+    "--output-file",
+    type=click.Path(dir_okay=False, path_type=Path), required=True,
+)
+@click.pass_obj
+def export_raw_cmd(settings: Settings, output_file: Path) -> None:
     """Write a reproducible-builds-friendly archive of all raw_json columns."""
-    _not_implemented("export raw")
+    from cadence.analysis.export import ExportDependencyMissing, export_raw
+
+    try:
+        with connect(settings.db_path) as conn:
+            n = export_raw(conn, output_file)
+    except ExportDependencyMissing as exc:
+        err_console.print(f"[red]error[/red]: {exc}")
+        sys.exit(2)
+    size = output_file.stat().st_size
+    console.print(
+        f"[green]export raw[/green]: {n} entry(ies), {size:,} bytes "
+        f"→ {output_file}"
+    )
 
 
 # ---------- top-level ----------

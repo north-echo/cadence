@@ -42,12 +42,24 @@ dependencies = [
 # Linux-only — rpm bindings do not exist on other platforms.
 rpm = ['rpm-py-installer>=1.0 ; sys_platform == "linux"']
 
+# Per CADENCE-SPEC.md WP-12: parquet emission and the reproducible
+# tar.zst raw archive. Kept optional so the core CLI installs
+# lean (the analysis & report commands work without these).
+export = [
+    "pyarrow>=15",
+    "zstandard>=0.22",
+]
+
 dev = [
     "pytest>=8.0",
     "pytest-httpx>=0.30",
     "hypothesis>=6.100",
     "ruff>=0.4",
     "mypy>=1.10",
+    # Bring the optional export deps into the dev environment so the
+    # WP-12 tests run without a separate install step.
+    "pyarrow>=15",
+    "zstandard>=0.22",
 ]
 
 [project.scripts]
