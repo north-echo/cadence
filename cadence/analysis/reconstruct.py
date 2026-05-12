@@ -52,6 +52,7 @@ import sqlite3
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from time import monotonic
 
 import structlog
 
@@ -252,7 +253,32 @@ def iter_gap_rows(
     not_affected = _fetch_not_affected_products(conn)
     now_iso = datetime.now(UTC).isoformat()
 
-    for fix in fixes:
+    total_fixes = len(fixes)
+    log.info(
+        "reconstruct.iter.start",
+        total_fixes=total_fixes,
+        targets=len(targets),
+        not_affected=len(not_affected),
+        methodology_version=methodology_version,
+    )
+
+    rows_yielded = 0
+    last_progress = monotonic()
+    for i, fix in enumerate(fixes):
+        # Every 25k fixes, log a progress line. Also include a wall-clock
+        # gate so verbose-output observers see something even on slower runs.
+        if i and i % 25_000 == 0:
+            now = monotonic()
+            log.info(
+                "reconstruct.iter.progress",
+                fixes_processed=i,
+                fixes_remaining=total_fixes - i,
+                pct=round(i / total_fixes * 100, 1) if total_fixes else 0,
+                rows_yielded=rows_yielded,
+                elapsed_since_last_progress_seconds=round(now - last_progress, 1),
+            )
+            last_progress = now
+
         if (fix.rhsa_id, fix.product) in not_affected:
             result.not_affected_skipped += 1
             continue
@@ -310,6 +336,14 @@ def iter_gap_rows(
                     gap_a, gap_b, gap_c,
                     now_iso, methodology_version,
                 )
+                rows_yielded += 1
+
+    log.info(
+        "reconstruct.iter.done",
+        fixes_processed=total_fixes,
+        rows_yielded=rows_yielded,
+        not_affected_skipped=result.not_affected_skipped,
+    )
 
 
 def persist(
