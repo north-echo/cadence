@@ -219,6 +219,59 @@ def test_two_methodology_versions_coexist(tmp_path: Path) -> None:
 # ----------------------------------------------------------------------
 
 
+def test_persist_streams_rows_in_bounded_batches(tmp_path: Path) -> None:
+    """Regression test for the OOM that bit reconstruct at scale.
+
+    Verifies ``persist`` drains an iterator and writes via batched
+    executemany — peak memory is O(batch_size), not O(total rows). Tests
+    by passing a generator that would be expensive to materialise and
+    confirming the right number of rows lands.
+    """
+    from cadence.analysis.reconstruct import persist
+
+    settings = _settings(tmp_path)
+    _init_db(settings)
+
+    # Synthetic batch of 50,000 rows. If `persist` accidentally collects
+    # this into a list before inserting, that's still fine for 50k —
+    # the *real* protection is the generator-shaped input. The point of
+    # the test is to lock in the iterable contract.
+    pub = datetime(2025, 1, 1, tzinfo=UTC).isoformat()
+    now = datetime.now(UTC).isoformat()
+
+    # Need a parent rhsa for FK
+    with connect(settings.db_path) as conn:
+        conn.execute(
+            """INSERT INTO rhsa
+                 (rhsa_id, title, severity, published_at, source_url,
+                  raw_json, collected_at)
+               VALUES ('RHSA-2099:9999', 'x', 'low', ?, 'x', '{}', ?)""",
+            (pub, pub),
+        )
+
+        def gen():
+            for i in range(50_000):
+                yield (
+                    "RHSA-2099:9999",
+                    f"repo/{i % 4}",
+                    "ubi",
+                    "x86_64",
+                    f"pkg-{i % 100}",
+                    "0:1-1.el9",
+                    pub, None, None, None,
+                    None, None, None,
+                    now, "v1",
+                )
+
+        written = persist(conn, gen(), methodology_version="v1", batch_size=500)
+        assert written == 50_000
+
+        n = conn.execute(
+            "SELECT COUNT(*) FROM gap_measurement WHERE methodology_version = 'v1'"
+        ).fetchone()[0]
+        assert n == 50_000
+
+
 def test_cross_check_against_catalog_advisory_mapping(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     _init_db(settings)

@@ -49,6 +49,7 @@ cross-validation signal only (CADENCE-SPEC.md §1, §WP-09).
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -230,21 +231,25 @@ def _image_first_built_at(
 # ---------------------------------------------------------------------------
 
 
-def compute_gap_rows(
+DEFAULT_BATCH_SIZE = 10_000
+
+
+def iter_gap_rows(
     conn: sqlite3.Connection,
     *,
     methodology_version: str,
     result: ReconstructResult,
-) -> list[tuple]:
-    """Walk every (RHSA, fix, tracked-repo, arch) and produce gap_measurement rows.
+) -> Iterator[tuple]:
+    """Stream gap_measurement rows for every (RHSA, fix, tracked-repo, arch).
 
-    The returned tuples are positional matches to the INSERT in :func:`persist`.
+    Yields tuples whose positions match the INSERT in :func:`persist`. Using a
+    generator keeps memory bounded — the materialised list approach used in
+    earlier versions allocated O(N) Python tuples (~75 M on a full UBI
+    backfill, ~6 GB by 38 minutes) and would OOM the OptiPlex.
     """
     fixes = _fetch_fixes(conn)
     targets = _fetch_tracked_targets(conn)
     not_affected = _fetch_not_affected_products(conn)
-
-    out: list[tuple] = []
     now_iso = datetime.now(UTC).isoformat()
 
     for fix in fixes:
@@ -296,48 +301,60 @@ def compute_gap_rows(
                     else None
                 )
 
-                out.append(
-                    (
-                        fix.rhsa_id, target.repository, target.tier, arch,
-                        fix.package_name, fix.fixed_version,
-                        inputs.rhsa_published_at,
-                        inputs.repo_first_seen_at, inputs.image_first_built_at,
-                        inputs.image_id,
-                        gap_a, gap_b, gap_c,
-                        now_iso, methodology_version,
-                    )
+                yield (
+                    fix.rhsa_id, target.repository, target.tier, arch,
+                    fix.package_name, fix.fixed_version,
+                    inputs.rhsa_published_at,
+                    inputs.repo_first_seen_at, inputs.image_first_built_at,
+                    inputs.image_id,
+                    gap_a, gap_b, gap_c,
+                    now_iso, methodology_version,
                 )
-    return out
 
 
 def persist(
     conn: sqlite3.Connection,
-    rows: list[tuple],
+    rows: Iterable[tuple],
     *,
     methodology_version: str,
+    batch_size: int = DEFAULT_BATCH_SIZE,
 ) -> int:
-    """Replace gap_measurement rows for the given methodology version."""
+    """Replace gap_measurement rows for the given methodology version.
+
+    Drains ``rows`` (any iterable, typically the :func:`iter_gap_rows`
+    generator) into batched ``executemany`` calls, all inside a single
+    ``BEGIN/COMMIT``. Peak memory is O(batch_size) regardless of total
+    row count.
+    """
+    _insert_sql = """
+        INSERT INTO gap_measurement (
+            rhsa_id, repository, tier, architecture,
+            package_name, fixed_version,
+            rhsa_published_at, repo_first_seen_at, image_first_built_at,
+            image_id,
+            gap_a_seconds, gap_b_seconds, gap_c_seconds,
+            computed_at, methodology_version
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
     conn.execute("BEGIN")
     try:
         conn.execute(
             "DELETE FROM gap_measurement WHERE methodology_version = ?",
             (methodology_version,),
         )
-        conn.executemany(
-            """
-            INSERT INTO gap_measurement (
-                rhsa_id, repository, tier, architecture,
-                package_name, fixed_version,
-                rhsa_published_at, repo_first_seen_at, image_first_built_at,
-                image_id,
-                gap_a_seconds, gap_b_seconds, gap_c_seconds,
-                computed_at, methodology_version
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            rows,
-        )
+        total = 0
+        batch: list[tuple] = []
+        for row in rows:
+            batch.append(row)
+            if len(batch) >= batch_size:
+                conn.executemany(_insert_sql, batch)
+                total += len(batch)
+                batch.clear()
+        if batch:
+            conn.executemany(_insert_sql, batch)
+            total += len(batch)
         conn.execute("COMMIT")
-        return len(rows)
+        return total
     except Exception:
         conn.execute("ROLLBACK")
         raise
@@ -414,9 +431,11 @@ def reconstruct(
     started = datetime.now(UTC)
     result = ReconstructResult(methodology_version=methodology_version)
 
-    rows = compute_gap_rows(conn, methodology_version=methodology_version, result=result)
+    row_iter = iter_gap_rows(
+        conn, methodology_version=methodology_version, result=result
+    )
     result.gap_rows_written = persist(
-        conn, rows, methodology_version=methodology_version
+        conn, row_iter, methodology_version=methodology_version
     )
     result.intervals_written = reconstruct_intervals(conn)
     cross_check(conn, methodology_version=methodology_version, result=result)
@@ -436,10 +455,11 @@ def reconstruct(
 
 
 __all__ = [
+    "DEFAULT_BATCH_SIZE",
     "DEFAULT_METHODOLOGY_VERSION",
     "ReconstructResult",
-    "compute_gap_rows",
     "cross_check",
+    "iter_gap_rows",
     "persist",
     "reconstruct",
 ]
