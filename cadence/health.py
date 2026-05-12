@@ -66,12 +66,19 @@ def _parse_iso(value: str) -> datetime:
 def _query_last_success(
     conn: sqlite3.Connection, source: str
 ) -> tuple[str, int] | None:
-    """Return ``(completed_at_iso, records)`` for the latest successful run."""
+    """Return ``(completed_at_iso, records)`` for the latest successful run.
+
+    A "successful" run mirrors the CLI's exit-code policy
+    (``cadence.cli._finish_collect_run``): a run is failed only when it
+    persisted *zero* records AND saw at least one per-record error. A run
+    that persisted thousands of records alongside a handful of transient
+    upstream 404s is healthy, not silent.
+    """
     row = conn.execute(
         """
         SELECT completed_at, records
           FROM collection_run
-         WHERE source = ? AND errors = 0
+         WHERE source = ? AND NOT (records = 0 AND errors > 0)
          ORDER BY completed_at DESC
          LIMIT 1
         """,

@@ -145,17 +145,36 @@ def test_health_check_stale_when_one_source_silent(tmp_path: Path) -> None:
     assert not result.overall_ok
 
 
-def test_health_check_ignores_failed_runs(tmp_path: Path) -> None:
-    """Only error-free runs count; a failed run doesn't reset the staleness clock."""
+def test_health_check_ignores_fully_failed_runs(tmp_path: Path) -> None:
+    """A run with records=0 AND errors>0 doesn't reset the staleness clock.
+
+    Mirrors the CLI exit-code policy: "completely useless" runs are not
+    counted as freshness; partial-success runs (records>0, errors>0) are.
+    """
     settings = _settings(tmp_path)
     _init_db(settings)
-    _record(settings, source="rhsa", age_seconds=9 * 3600, errors=0)  # stale
-    _record(settings, source="rhsa", age_seconds=60, errors=3)        # fresh but failed
+    _record(settings, source="rhsa", age_seconds=9 * 3600, errors=0)
+    # Recent but useless: records=0 + errors=3
+    _record(settings, source="rhsa", age_seconds=60, records=0, errors=3)
     with connect(settings.db_path) as conn:
         result = health_check(conn)
     rhsa = next(s for s in result.sources if s.source == "rhsa")
-    # Most recent successful run is 9h old; rhsa expected 4h → 9 > 2x4
+    # Most recent useful run is 9h old; rhsa expected 4h → 9 > 2x4 → stale.
     assert rhsa.status == "stale"
+
+
+def test_health_check_partial_success_is_fresh(tmp_path: Path) -> None:
+    """The original 'errors=0 only' policy mis-classified 9400-records/1-error
+    runs as silent. Verify the new semantics treat that as fresh.
+    """
+    settings = _settings(tmp_path)
+    _init_db(settings)
+    _record(settings, source="rhsa", age_seconds=60, records=9403, errors=1)
+    with connect(settings.db_path) as conn:
+        result = health_check(conn)
+    rhsa = next(s for s in result.sources if s.source == "rhsa")
+    assert rhsa.status == "ok"
+    assert rhsa.last_records == 9403
 
 
 def test_health_check_picks_latest_successful_run(tmp_path: Path) -> None:

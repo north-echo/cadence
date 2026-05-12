@@ -9,7 +9,12 @@ Type=oneshot
 # Resolve `cadence` via the user's local pip install. If you installed via
 # uv, replace this with the venv's binary (e.g. %h/cadence/.venv/bin/cadence).
 Environment="PATH=%h/.local/bin:/usr/local/bin:/usr/bin"
-ExecStart=%h/.local/bin/cadence collect rhsa
+# Incremental: restrict the list query to RHSAs released in the last 36
+# hours. Comfortably covers the 4-hour timer interval, the 10-minute
+# RandomizedDelaySec, and any prior failed run. The full historical
+# backfill is a one-shot manual `cadence collect rhsa` invocation — not
+# timer-driven. Same pattern as cadence-collect-catalog.service.
+ExecStart=/bin/sh -c 'exec %h/.local/bin/cadence collect rhsa --since $$(date --utc --date="36 hours ago" +%%Y-%%m-%%d)'
 Nice=10
 IOSchedulingClass=best-effort
 IOSchedulingPriority=4
