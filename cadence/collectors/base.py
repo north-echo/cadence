@@ -163,8 +163,14 @@ class DiskCache:
         )
 
     def put(self, key: str, response: CachedResponse) -> None:
+        """Persist a response to disk; tolerant of ENOSPC and friends.
+
+        The cache is an optimization, not a correctness requirement. If the
+        write fails for any OS reason (disk full, read-only fs, permission,
+        directory mid-prune) we log and continue — the collector returns the
+        response just fine, the next request just re-fetches.
+        """
         path = self._path(key)
-        path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "url": response.url,
             "status_code": response.status_code,
@@ -174,8 +180,19 @@ class DiskCache:
             "ttl_seconds": response.ttl_seconds,
         }
         tmp = path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(payload), encoding="utf-8")
-        tmp.replace(path)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_text(json.dumps(payload), encoding="utf-8")
+            tmp.replace(path)
+        except OSError as exc:
+            log.warning(
+                "cache.put_failed", url=response.url, error=str(exc),
+            )
+            # Best-effort cleanup of a partial write so the next put doesn't
+            # see stale .tmp garbage.
+            import contextlib
+            with contextlib.suppress(OSError):
+                tmp.unlink()
 
 
 # ---------------------------------------------------------------------------

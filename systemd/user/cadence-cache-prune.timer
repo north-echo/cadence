@@ -1,0 +1,16 @@
+[Unit]
+Description=CADENCE: nightly cache prune
+Documentation=https://github.com/north-echo/cadence/blob/main/docs/operations.md
+
+[Timer]
+# Run once a night at 04:17 local — offset matches the CADENCE convention
+# (avoid round-number cron rails, leave 30 minutes' breathing room around
+# any nearby collector run). Persistent so a missed run after a host
+# reboot fires once at boot.
+OnCalendar=*-*-* 04:17:00
+RandomizedDelaySec=10min
+Persistent=true
+Unit=cadence-cache-prune.service
+
+[Install]
+WantedBy=timers.target

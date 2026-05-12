@@ -58,6 +58,30 @@ def _record_run(settings: Settings, source: str, result) -> None:
         )
 
 
+def _finish_collect_run(result, *, source: str) -> None:
+    """Render per-record errors as warnings, then decide the CLI exit code.
+
+    Per-record errors are reported but NOT fatal: the collector already
+    isolated them, so a run with 5 errors out of 5000 records is healthy.
+    We exit non-zero only when the run was effectively useless — zero
+    records AND at least one error. (If the collector itself raised, it
+    has already escaped this code path.)
+    """
+    if result.errors:
+        for msg in result.errors[:10]:
+            err_console.print(f"  [yellow]![/yellow] {msg}")
+        if len(result.errors) > 10:
+            err_console.print(
+                f"  … and {len(result.errors) - 10} more"
+            )
+    if result.records == 0 and result.errors:
+        err_console.print(
+            f"[red]{source}[/red]: 0 records persisted, "
+            f"{len(result.errors)} error(s) — treating as failure."
+        )
+        sys.exit(1)
+
+
 @click.group(context_settings={"help_option_names": ["-h", "--help"]})
 @click.version_option(__version__, prog_name="cadence")
 @click.option(
@@ -159,12 +183,7 @@ def collect_rhsa(
                 f"in {result.duration_seconds:.1f}s "
                 f"({len(result.errors)} error(s))"
             )
-            if result.errors:
-                for msg in result.errors[:10]:
-                    err_console.print(f"  [yellow]![/yellow] {msg}")
-                if len(result.errors) > 10:
-                    err_console.print(f"  … and {len(result.errors) - 10} more")
-                sys.exit(1)
+            _finish_collect_run(result, source="rhsa")
 
     settings.db_path.parent.mkdir(parents=True, exist_ok=True)
     with connect(settings.db_path) as conn:
@@ -205,12 +224,7 @@ def collect_csaf(
                 f"in {result.duration_seconds:.1f}s "
                 f"({len(result.errors)} error(s))"
             )
-            if result.errors:
-                for msg in result.errors[:10]:
-                    err_console.print(f"  [yellow]![/yellow] {msg}")
-                if len(result.errors) > 10:
-                    err_console.print(f"  … and {len(result.errors) - 10} more")
-                sys.exit(1)
+            _finish_collect_run(result, source="csaf")
 
     settings.db_path.parent.mkdir(parents=True, exist_ok=True)
     with connect(settings.db_path) as conn:
@@ -241,12 +255,7 @@ def collect_repodata(settings: Settings, repos: str | None) -> None:
                 f"in {result.duration_seconds:.1f}s "
                 f"({len(result.errors)} error(s))"
             )
-            if result.errors:
-                for msg in result.errors[:10]:
-                    err_console.print(f"  [yellow]![/yellow] {msg}")
-                if len(result.errors) > 10:
-                    err_console.print(f"  … and {len(result.errors) - 10} more")
-                sys.exit(1)
+            _finish_collect_run(result, source="repodata")
 
     settings.db_path.parent.mkdir(parents=True, exist_ok=True)
     with connect(settings.db_path) as conn:
@@ -295,12 +304,7 @@ def collect_catalog(
                 f"in {result.duration_seconds:.1f}s "
                 f"({len(result.errors)} error(s))"
             )
-            if result.errors:
-                for msg in result.errors[:10]:
-                    err_console.print(f"  [yellow]![/yellow] {msg}")
-                if len(result.errors) > 10:
-                    err_console.print(f"  … and {len(result.errors) - 10} more")
-                sys.exit(1)
+            _finish_collect_run(result, source="catalog")
 
     settings.db_path.parent.mkdir(parents=True, exist_ok=True)
     with connect(settings.db_path) as conn:
@@ -331,12 +335,7 @@ def collect_quay(settings: Settings, repos: str | None) -> None:
                 f"in {result.duration_seconds:.1f}s "
                 f"({len(result.errors)} error(s))"
             )
-            if result.errors:
-                for msg in result.errors[:10]:
-                    err_console.print(f"  [yellow]![/yellow] {msg}")
-                if len(result.errors) > 10:
-                    err_console.print(f"  … and {len(result.errors) - 10} more")
-                sys.exit(1)
+            _finish_collect_run(result, source="quay")
 
     settings.db_path.parent.mkdir(parents=True, exist_ok=True)
     with connect(settings.db_path) as conn:
@@ -776,6 +775,49 @@ def health(settings: Settings) -> None:
     render_health(result, console)
     if not result.overall_ok:
         sys.exit(1)
+
+
+@main.group()
+def cache() -> None:
+    """Local HTTP cache management."""
+
+
+@cache.command("size")
+@click.pass_obj
+def cache_size_cmd(settings: Settings) -> None:
+    """Report the current size of the local HTTP cache."""
+    from cadence.cache import cache_size_bytes
+
+    n = cache_size_bytes(settings.cache_dir)
+    console.print(
+        f"[green]cache[/green]: {n:,} bytes ({n / 1_048_576:.1f} MiB) "
+        f"at {settings.cache_dir}"
+    )
+
+
+@cache.command("prune")
+@click.option(
+    "--max-bytes", type=int,
+    default=None,
+    help="Cap on total cache size in bytes (default: 1 GiB).",
+)
+@click.pass_obj
+def cache_prune_cmd(settings: Settings, max_bytes: int | None) -> None:
+    """Trim oldest cache files until total size <= --max-bytes.
+
+    Intended to run nightly via ``cadence-cache-prune.timer``; safe to
+    invoke ad-hoc when disk space gets tight.
+    """
+    from cadence.cache import DEFAULT_MAX_BYTES, prune
+
+    cap = DEFAULT_MAX_BYTES if max_bytes is None else max_bytes
+    result = prune(settings.cache_dir, max_bytes=cap)
+    console.print(
+        f"[green]cache prune[/green]: "
+        f"{result.bytes_freed:,} bytes freed across "
+        f"{result.files_removed} file(s); "
+        f"now at {result.total_bytes_after:,} / {cap:,} bytes."
+    )
 
 
 @main.group()

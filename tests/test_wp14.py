@@ -320,6 +320,25 @@ def test_systemd_timer_minute_offsets_avoid_round_marks() -> None:
             assert match.group(1) in ("17", "47"), f"{name}: {ln}"
 
 
+def test_cache_prune_unit_present_and_well_formed() -> None:
+    """Post-incident addition: nightly cache-prune timer."""
+    svc = _UNIT_DIR / "cadence-cache-prune.service"
+    tmr = _UNIT_DIR / "cadence-cache-prune.timer"
+    assert svc.exists() and tmr.exists()
+
+    svc_text = svc.read_text()
+    assert "ExecStart=" in svc_text
+    assert "cadence cache prune" in svc_text
+    assert "Type=oneshot" in svc_text
+
+    tmr_text = tmr.read_text()
+    assert "OnCalendar=" in tmr_text
+    assert "Persistent=true" in tmr_text
+    # Must use the :17/:47 offset convention
+    m = re.search(r":(\d{2}):\d{2}", tmr_text)
+    assert m is not None and m.group(1) in ("17", "47")
+
+
 def test_systemd_timers_dont_collide_within_the_same_hour() -> None:
     """Different timers should not fire at the same HH:MM."""
     seen: dict[tuple[str, str], str] = {}

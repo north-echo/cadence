@@ -1,0 +1,16 @@
+[Unit]
+Description=CADENCE: trim oldest HTTP cache entries
+Documentation=https://github.com/north-echo/cadence/blob/main/docs/operations.md
+
+[Service]
+Type=oneshot
+Environment="PATH=%h/.local/bin:/usr/local/bin:/usr/bin"
+# Default cap: 1 GiB. Override with `CADENCE_CACHE_MAX_BYTES` (read by the
+# CLI command's --max-bytes default, or pass --max-bytes explicitly here
+# if you want a different policy on this host).
+ExecStart=%h/.local/bin/cadence cache prune
+Nice=15
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=default.target
