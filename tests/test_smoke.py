@@ -71,3 +71,24 @@ def test_targets_have_rationale() -> None:
 
 def test_version_exposed() -> None:
     assert __version__
+
+
+def test_connect_sets_busy_timeout(tmp_path: Path) -> None:
+    """Post-incident: concurrent writers must wait, not fail-fast."""
+    db_path = tmp_path / "cadence.db"
+    with connect(db_path) as conn:
+        # busy_timeout is in milliseconds; we set 30_000 ms (= 30 s)
+        timeout = conn.execute("PRAGMA busy_timeout").fetchone()[0]
+    assert timeout == 30_000
+
+
+def test_migration_003_creates_repo_arch_index(tmp_path: Path) -> None:
+    db_path = tmp_path / "cadence.db"
+    with connect(db_path) as conn:
+        apply_migrations(conn)
+        rows = conn.execute(
+            "SELECT name FROM sqlite_master "
+            "WHERE type='index' AND tbl_name='container_image'"
+        ).fetchall()
+    names = {r[0] for r in rows}
+    assert "idx_container_image_repo_arch" in names

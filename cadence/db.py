@@ -52,6 +52,13 @@ def connect(db_path: Path) -> Iterator[sqlite3.Connection]:
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA foreign_keys=ON")
         conn.execute("PRAGMA synchronous=NORMAL")
+        # 30s busy_timeout so concurrent writers (e.g., a collector firing
+        # while `cadence analyze reconstruct` holds the write lock through
+        # a long batched transaction) wait gracefully instead of failing
+        # immediately with "database is locked". Post-incident:
+        # without this, the WP-09 reconstruct's hours-long write
+        # transaction starved every scheduled timer during a real run.
+        conn.execute("PRAGMA busy_timeout=30000")
         yield conn
     finally:
         conn.close()
