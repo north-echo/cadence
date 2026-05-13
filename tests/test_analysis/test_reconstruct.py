@@ -135,6 +135,29 @@ def test_reconstruct_gap_a_null_when_no_repo_observation(tmp_path: Path) -> None
     assert gap_c == 3 * 86_400  # but Gap C still falls out of RHSA pub + image build
 
 
+def test_skip_quay_targets_omits_quay_rows(tmp_path: Path) -> None:
+    """--skip-quay-targets drops the always-NULL Quay rows from the output."""
+    settings = _settings(tmp_path)
+    _init_db(settings)
+    _setup_minimal_fixture(settings)
+    with connect(settings.db_path) as conn:
+        conn.execute(
+            """INSERT INTO tracked_repository
+                  (repository, source, registry, tier, rationale, added_at)
+               VALUES ('cilium/cilium', 'quay', 'quay.io', 'quay_community',
+                       'test', ?)""",
+            (datetime.now(UTC).isoformat(),),
+        )
+        # With skip: Quay row should NOT be emitted.
+        reconstruct(conn, skip_quay_targets=True)
+        rows = conn.execute(
+            "SELECT DISTINCT repository FROM gap_measurement"
+        ).fetchall()
+    repos = {r[0] for r in rows}
+    assert "cilium/cilium" not in repos
+    assert "ubi9/ubi" in repos
+
+
 def test_reconstruct_quay_images_yield_null_image_gaps(tmp_path: Path) -> None:
     """Quay tracked repos have no container_image_rpm rows; gap_c stays NULL."""
     settings = _settings(tmp_path)

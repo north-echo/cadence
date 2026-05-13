@@ -424,9 +424,20 @@ def analyze() -> None:
     default=None,
     help="Tag for this run (default: 'v1'). Multiple versions coexist.",
 )
+@click.option(
+    "--skip-quay-targets/--include-quay-targets",
+    default=False,
+    show_default=True,
+    help="Skip emitting gap_measurement rows for Quay-source tracked repos. "
+    "Quay tracked repos always emit NULL image-side gaps in v1 (no "
+    "container_image_rpm rows); this trims the dataset without losing "
+    "analytical content. Default is False (spec-compliant: emit everything).",
+)
 @click.pass_obj
 def analyze_reconstruct(
-    settings: Settings, methodology_version: str | None
+    settings: Settings,
+    methodology_version: str | None,
+    skip_quay_targets: bool,
 ) -> None:
     """Reconstruct gap_measurement + rebuild_interval from raw data."""
     from cadence.analysis.reconstruct import DEFAULT_METHODOLOGY_VERSION, reconstruct
@@ -434,7 +445,11 @@ def analyze_reconstruct(
     version = methodology_version or DEFAULT_METHODOLOGY_VERSION
 
     with connect(settings.db_path) as conn:
-        result = reconstruct(conn, methodology_version=version)
+        result = reconstruct(
+            conn,
+            methodology_version=version,
+            skip_quay_targets=skip_quay_targets,
+        )
 
     rate = result.cross_check_match_rate
     rate_str = f"{rate * 100:.1f}%" if rate is not None else "n/a"

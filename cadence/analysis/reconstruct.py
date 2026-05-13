@@ -235,11 +235,28 @@ def _image_first_built_at(
 DEFAULT_BATCH_SIZE = 10_000
 
 
+SLOW_FIX_THRESHOLD_MS = 100.0
+
+
+def _progress(msg: str) -> None:
+    """Write a progress line to stderr, bypassing structlog/journald entirely.
+
+    The earlier instrumentation went through structlog → journald socket; for
+    reasons we never fully diagnosed, the journal stayed empty mid-run on
+    fluxgate even with PYTHONUNBUFFERED=1 + StandardError=journal. Direct
+    ``print(..., file=sys.stderr, flush=True)`` is the most bulletproof
+    alternative — every Python and stdio installation honours it.
+    """
+    import sys
+    print(msg, file=sys.stderr, flush=True)
+
+
 def iter_gap_rows(
     conn: sqlite3.Connection,
     *,
     methodology_version: str,
     result: ReconstructResult,
+    skip_quay_targets: bool = False,
 ) -> Iterator[tuple]:
     """Stream gap_measurement rows for every (RHSA, fix, tracked-repo, arch).
 
@@ -247,35 +264,47 @@ def iter_gap_rows(
     generator keeps memory bounded — the materialised list approach used in
     earlier versions allocated O(N) Python tuples (~75 M on a full UBI
     backfill, ~6 GB by 38 minutes) and would OOM the OptiPlex.
+
+    Parameters
+    ----------
+    skip_quay_targets:
+        When True, drop ``target.source == 'quay'`` entries from the
+        iteration entirely. Those rows always emit NULL image gaps in v1
+        (no ``container_image_rpm`` for Quay images) and contribute nothing
+        to gap-based analysis. The default (False) preserves the spec's
+        "emit a row for every (fix, target, arch) we know about" contract.
     """
     fixes = _fetch_fixes(conn)
     targets = _fetch_tracked_targets(conn)
+    if skip_quay_targets:
+        targets = [t for t in targets if t.source != "quay"]
     not_affected = _fetch_not_affected_products(conn)
     now_iso = datetime.now(UTC).isoformat()
 
     total_fixes = len(fixes)
-    log.info(
-        "reconstruct.iter.start",
-        total_fixes=total_fixes,
-        targets=len(targets),
-        not_affected=len(not_affected),
-        methodology_version=methodology_version,
+    _progress(
+        f"reconstruct.iter.start total_fixes={total_fixes} "
+        f"targets={len(targets)} not_affected={len(not_affected)} "
+        f"methodology_version={methodology_version} "
+        f"skip_quay_targets={skip_quay_targets}"
     )
 
     rows_yielded = 0
     last_progress = monotonic()
     for i, fix in enumerate(fixes):
-        # Every 25k fixes, log a progress line. Also include a wall-clock
-        # gate so verbose-output observers see something even on slower runs.
+        # Per-fix progress every 25k iterations. Direct stderr write so
+        # we don't depend on structlog → journald.
         if i and i % 25_000 == 0:
             now = monotonic()
-            log.info(
-                "reconstruct.iter.progress",
-                fixes_processed=i,
-                fixes_remaining=total_fixes - i,
-                pct=round(i / total_fixes * 100, 1) if total_fixes else 0,
-                rows_yielded=rows_yielded,
-                elapsed_since_last_progress_seconds=round(now - last_progress, 1),
+            elapsed = now - last_progress
+            rate = 25_000 / elapsed if elapsed > 0 else 0.0
+            _progress(
+                f"reconstruct.iter.progress "
+                f"fixes_processed={i}/{total_fixes} "
+                f"pct={i / total_fixes * 100:.1f}% "
+                f"rows_yielded={rows_yielded} "
+                f"window_seconds={elapsed:.1f} "
+                f"fixes_per_sec={rate:.1f}"
             )
             last_progress = now
 
@@ -286,6 +315,7 @@ def iter_gap_rows(
         if not search_arches:
             continue
         repo_seen_cache: dict[str, str | None] = {}
+        fix_started = monotonic()
 
         for target in targets:
             for arch in search_arches:
@@ -338,11 +368,21 @@ def iter_gap_rows(
                 )
                 rows_yielded += 1
 
-    log.info(
-        "reconstruct.iter.done",
-        fixes_processed=total_fixes,
-        rows_yielded=rows_yielded,
-        not_affected_skipped=result.not_affected_skipped,
+        # Slow-fix detection: surface anomalous individual fixes so we can
+        # spot whether the tail decay is one bad-actor package vs. uniform.
+        fix_elapsed_ms = (monotonic() - fix_started) * 1000
+        if fix_elapsed_ms > SLOW_FIX_THRESHOLD_MS:
+            _progress(
+                f"reconstruct.iter.slow_fix "
+                f"rhsa={fix.rhsa_id} package={fix.package_name} "
+                f"arch={fix.fix_arch} ms={fix_elapsed_ms:.0f}"
+            )
+
+    _progress(
+        f"reconstruct.iter.done "
+        f"fixes_processed={total_fixes} "
+        f"rows_yielded={rows_yielded} "
+        f"not_affected_skipped={result.not_affected_skipped}"
     )
 
 
@@ -458,6 +498,7 @@ def reconstruct(
     conn: sqlite3.Connection,
     *,
     methodology_version: str = DEFAULT_METHODOLOGY_VERSION,
+    skip_quay_targets: bool = False,
 ) -> ReconstructResult:
     """Run the full WP-09 reconstruction pipeline."""
     from cadence.analysis.intervals import reconstruct_intervals
@@ -466,7 +507,10 @@ def reconstruct(
     result = ReconstructResult(methodology_version=methodology_version)
 
     row_iter = iter_gap_rows(
-        conn, methodology_version=methodology_version, result=result
+        conn,
+        methodology_version=methodology_version,
+        result=result,
+        skip_quay_targets=skip_quay_targets,
     )
     result.gap_rows_written = persist(
         conn, row_iter, methodology_version=methodology_version
